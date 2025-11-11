@@ -10,30 +10,25 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-    - name: Checkout repo
+    - name: Checkout repository
       uses: actions/checkout@v4
 
-    - name: Setup Python
-      uses: actions/setup-python@v4
-      with:
-        python-version: '3.11'
-
-    - name: Install Linux dependencies
+    - name: Install system dependencies
       run: |
         sudo apt-get update
-        sudo apt-get install -y wget unzip git build-essential openjdk-11-jdk python3-venv python3-pip tar \
-          libglu1-mesa-dev freeglut3-dev mesa-common-dev autoconf automake libtool pkg-config
+        sudo apt-get install -y python3-venv python3-pip openjdk-11-jdk wget unzip git build-essential \
+        libglu1-mesa-dev freeglut3-dev mesa-common-dev tar autoconf automake libtool pkg-config
 
-    - name: Download and setup Android SDK
+    - name: Setup Android SDK and NDK
       run: |
         mkdir -p $HOME/Android/Sdk/cmdline-tools
         cd $HOME/Android/Sdk/cmdline-tools
         wget https://dl.google.com/android/repository/commandlinetools-linux-9477386_latest.zip -O cmdline-tools.zip
         unzip cmdline-tools.zip -d latest
         yes | $HOME/Android/Sdk/cmdline-tools/latest/bin/sdkmanager --licenses
-        $HOME/Android/Sdk/cmdline-tools/latest/bin/sdkmanager "platform-tools" "platforms;android-33" "build-tools;33.0.2"
+        $HOME/Android/Sdk/cmdline-tools/latest/bin/sdkmanager "platform-tools" "platforms;android-33" "build-tools;33.0.2" "ndk;25.2.9519653"
 
-    - name: Setup virtualenv
+    - name: Setup Python virtual environment
       run: |
         python3 -m venv p4a-venv
         source p4a-venv/bin/activate
