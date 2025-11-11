@@ -10,7 +10,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-    - name: Checkout repo
+    - name: Checkout repository
       uses: actions/checkout@v4
 
     - name: Setup Python
@@ -18,7 +18,7 @@ jobs:
       with:
         python-version: '3.11'
 
-    - name: Install Linux dependencies
+    - name: Install system dependencies
       run: |
         sudo apt-get update
         sudo apt-get install -y wget unzip git build-essential openjdk-11-jdk python3-venv python3-pip tar \
@@ -29,19 +29,22 @@ jobs:
         mkdir -p $HOME/Android/Sdk/cmdline-tools
         cd $HOME/Android/Sdk/cmdline-tools
         wget https://dl.google.com/android/repository/commandlinetools-linux-9477386_latest.zip -O cmdline-tools.zip
-        unzip cmdline-tools.zip
-        mv cmdline-tools latest
+        unzip cmdline-tools.zip -d latest
         export ANDROID_HOME=$HOME/Android/Sdk
         export PATH=$ANDROID_HOME/cmdline-tools/latest/bin:$ANDROID_HOME/platform-tools:$PATH
         yes | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --licenses
-        yes | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager "platform-tools" "platforms;android-33" "build-tools;33.0.2" "ndk;25.2.9519653"
+        yes | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager \
+          "platform-tools" \
+          "platforms;android-33" \
+          "build-tools;33.0.2" \
+          "ndk;25.2.9519653"
 
-    - name: Setup virtualenv
+    - name: Setup virtualenv and install p4a
       run: |
         python3 -m venv p4a-venv
         source p4a-venv/bin/activate
         pip install --upgrade pip
-        pip install python-for-android==2024.01.21 Cython
+        pip install Cython python-for-android==2024.01.21
 
     - name: Build APK
       run: |
@@ -61,7 +64,7 @@ jobs:
           --skip-build-pygame-c \
           --add-asset ./ATAGULDONER/assets
 
-    - name: Upload APK artifact
+    - name: Upload built APK
       uses: actions/upload-artifact@v3
       with:
         name: ATAGULDONER-APK
