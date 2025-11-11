@@ -19,7 +19,7 @@ jobs:
       with:
         python-version: '3.11'
 
-    - name: Install system packages (tar, wget, unzip, Java, build tools)
+    - name: Install system packages
       run: |
         sudo apt-get update
         sudo apt-get install -y \
@@ -27,7 +27,7 @@ jobs:
           python3-venv python3-pip python3-dev openjdk-17-jdk \
           libsdl2-dev libsdl2-image-dev libsdl2-mixer-dev libsdl2-ttf-dev
 
-    - name: Download Android commandline tools (robust placement)
+    - name: Download Android commandline tools
       run: |
         mkdir -p $HOME/android
         cd $HOME/android
@@ -44,25 +44,21 @@ jobs:
         rm -f cmdtools.zip
       shell: bash
 
-    - name: Install SDK packages (platforms, build-tools, ndk) and accept licenses
+    - name: Install SDK packages and accept licenses
       env:
         ANDROID_SDK_ROOT: ${{ github.workspace }}/android/sdk
       run: |
         export ANDROID_HOME=$HOME/android/sdk
         mkdir -p $ANDROID_HOME
         export PATH=$HOME/android/cmdline-tools/latest/bin:$PATH
-        SDKMAN="$HOME/android/cmdline-tools/latest/bin/sdkmanager"
-        echo "Using sdkmanager: $SDKMAN"
-        # Lisansları otomatik kabul et
-        yes | "$SDKMAN" --sdk_root="$ANDROID_HOME" --licenses || true
-        # Gerekli paketleri yükle
-        "$SDKMAN" --sdk_root="$ANDROID_HOME" "platform-tools" "platforms;android-34" "build-tools;34.0.0" "ndk;25.2.9519653"
+        yes | sdkmanager --sdk_root="$ANDROID_HOME" --licenses
+        sdkmanager --sdk_root="$ANDROID_HOME" "platform-tools" "platforms;android-34" "build-tools;34.0.0" "ndk;25.2.9519653"
         echo "ANDROIDSDK=$ANDROID_HOME" >> $GITHUB_ENV
         echo "ANDROIDNDK=$ANDROID_HOME/ndk/25.2.9519653" >> $GITHUB_ENV
         echo "PATH=$HOME/android/cmdline-tools/latest/bin:$ANDROID_HOME/platform-tools:$PATH" >> $GITHUB_ENV
       shell: bash
 
-    - name: Install Buildozer & deps (isolated pip)
+    - name: Install Buildozer & deps
       run: |
         python3 -m venv .p4a-venv
         source .p4a-venv/bin/activate
@@ -71,7 +67,7 @@ jobs:
         buildozer --version
       shell: bash
 
-    - name: Ensure buildozer.spec exists and configure basic values
+    - name: Ensure buildozer.spec exists
       run: |
         if [ ! -f buildozer.spec ]; then
           source .p4a-venv/bin/activate
@@ -88,7 +84,7 @@ jobs:
         sed -i 's/^android.accept_sdk_license =.*/android.accept_sdk_license = True/' buildozer.spec || echo "android.accept_sdk_license = True" >> buildozer.spec
       shell: bash
 
-    - name: Run Buildozer build (debug)
+    - name: Build APK
       env:
         ANDROIDSDK: ${{ env.ANDROIDSDK }}
         ANDROIDNDK: ${{ env.ANDROIDNDK }}
@@ -99,10 +95,10 @@ jobs:
         export ANDROIDSDK=$HOME/android/sdk
         export ANDROIDNDK=$HOME/android/sdk/ndk/25.2.9519653
         export PATH=$HOME/android/cmdline-tools/latest/bin:$ANDROIDSDK/platform-tools:$PATH
-        buildozer -v android debug || (echo "Buildozer failed — printing last 200 lines of log" && tail -n 200 ./.buildozer/android/platform-*/*/buildozer.log || true ; exit 1)
+        buildozer -v android debug || (tail -n 200 ./.buildozer/android/platform-*/*/buildozer.log || true ; exit 1)
       shell: bash
 
-    - name: Upload APK artifact (v4)
+    - name: Upload APK artifact
       uses: actions/upload-artifact@v4
       with:
         name: ATAGULDONER-APK
