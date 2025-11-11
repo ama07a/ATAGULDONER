@@ -24,10 +24,11 @@ jobs:
         mkdir -p $HOME/Android/Sdk/cmdline-tools
         cd $HOME/Android/Sdk/cmdline-tools
         wget https://dl.google.com/android/repository/commandlinetools-linux-9477386_latest.zip -O cmdline-tools.zip
-        unzip cmdline-tools.zip -d latest
-        export PATH=$HOME/Android/Sdk/cmdline-tools/latest/bin:$PATH
-        yes | sdkmanager --licenses
-        sdkmanager "platform-tools" "platforms;android-33" "build-tools;33.0.2" "ndk;25.2.9519653"
+        unzip cmdline-tools.zip
+        mv cmdline-tools latest
+        export PATH=$HOME/Android/Sdk/cmdline-tools/latest/bin:$HOME/Android/Sdk/cmdline-tools/latest/cmdline-tools/bin:$PATH
+        yes | $HOME/Android/Sdk/cmdline-tools/latest/cmdline-tools/bin/sdkmanager --licenses
+        $HOME/Android/Sdk/cmdline-tools/latest/cmdline-tools/bin/sdkmanager "platform-tools" "platforms;android-33" "build-tools;33.0.2" "ndk;25.2.9519653"
       shell: bash
 
     - name: Setup Python virtual environment
@@ -43,7 +44,7 @@ jobs:
         ANDROIDNDK: $HOME/Android/Sdk/ndk/25.2.9519653
       run: |
         source p4a-venv/bin/activate
-        export PATH=$ANDROIDSDK/cmdline-tools/latest/bin:$PATH
+        export PATH=$ANDROIDSDK/cmdline-tools/latest/bin:$ANDROIDSDK/cmdline-tools/latest/cmdline-tools/bin:$PATH
         p4a apk \
           --private ./ATAGULDONER \
           --package=org.yourname.ataguldoner \
