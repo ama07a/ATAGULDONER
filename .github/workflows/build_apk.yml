@@ -33,7 +33,6 @@ jobs:
         cd $HOME/android
         wget -q https://dl.google.com/android/repository/commandlinetools-linux-9477386_latest.zip -O cmdtools.zip
         unzip -q cmdtools.zip -d cmdline-tools
-        # Normalize structure: some zips extract to cmdline-tools/cmdline-tools, some to cmdline-tools
         if [ -d cmdline-tools/cmdline-tools ]; then
           mv cmdline-tools/cmdline-tools cmdline-tools/latest
         elif [ -d cmdline-tools/bin ]; then
@@ -52,15 +51,11 @@ jobs:
         export ANDROID_HOME=$HOME/android/sdk
         mkdir -p $ANDROID_HOME
         export PATH=$HOME/android/cmdline-tools/latest/bin:$PATH
-        # Ensure sdkmanager exists
-        if ! command -v sdkmanager >/dev/null 2>&1; then
-          echo "sdkmanager not found on PATH, trying explicit path..."
-          SDKMAN="$HOME/android/cmdline-tools/latest/bin/sdkmanager"
-        else
-          SDKMAN="$(command -v sdkmanager)"
-        fi
+        SDKMAN="$HOME/android/cmdline-tools/latest/bin/sdkmanager"
         echo "Using sdkmanager: $SDKMAN"
-        yes | "$SDKMAN" --sdk_root="$ANDROID_HOME" --licenses
+        # Lisansları otomatik kabul et
+        yes | "$SDKMAN" --sdk_root="$ANDROID_HOME" --licenses || true
+        # Gerekli paketleri yükle
         "$SDKMAN" --sdk_root="$ANDROID_HOME" "platform-tools" "platforms;android-34" "build-tools;34.0.0" "ndk;25.2.9519653"
         echo "ANDROIDSDK=$ANDROID_HOME" >> $GITHUB_ENV
         echo "ANDROIDNDK=$ANDROID_HOME/ndk/25.2.9519653" >> $GITHUB_ENV
@@ -73,18 +68,15 @@ jobs:
         source .p4a-venv/bin/activate
         pip install --upgrade pip setuptools wheel
         pip install buildozer==1.5.0 Cython==0.29.36
-        # assure buildozer command available
         buildozer --version
       shell: bash
 
     - name: Ensure buildozer.spec exists and configure basic values
       run: |
-        # if no spec, init one (keeps it idempotent)
         if [ ! -f buildozer.spec ]; then
           source .p4a-venv/bin/activate
           buildozer init
         fi
-        # Set safe defaults for android build
         sed -i 's/^android.api =.*/android.api = 34/' buildozer.spec || echo "android.api = 34" >> buildozer.spec
         sed -i 's/^android.ndk =.*/android.ndk = 25.2.9519653/' buildozer.spec || echo "android.ndk = 25.2.9519653" >> buildozer.spec
         sed -i 's/^android.minapi =.*/android.minapi = 24/' buildozer.spec || echo "android.minapi = 24" >> buildozer.spec
@@ -93,7 +85,6 @@ jobs:
         sed -i 's/^package.domain =.*/package.domain = org.atagul/' buildozer.spec || echo "package.domain = org.atagul" >> buildozer.spec
         sed -i 's%^source.dir =.*%source.dir = ./ATAGULDONER%' buildozer.spec || echo "source.dir = ./ATAGULDONER" >> buildozer.spec
         sed -i 's/^requirements =.*/requirements = python3,pygame/' buildozer.spec || echo "requirements = python3,pygame" >> buildozer.spec
-        # Ensure android.accept_sdk_license set
         sed -i 's/^android.accept_sdk_license =.*/android.accept_sdk_license = True/' buildozer.spec || echo "android.accept_sdk_license = True" >> buildozer.spec
       shell: bash
 
@@ -108,7 +99,6 @@ jobs:
         export ANDROIDSDK=$HOME/android/sdk
         export ANDROIDNDK=$HOME/android/sdk/ndk/25.2.9519653
         export PATH=$HOME/android/cmdline-tools/latest/bin:$ANDROIDSDK/platform-tools:$PATH
-        # Build debug APK. This can take long (NDK/python compile). Use -v for verbose on failure.
         buildozer -v android debug || (echo "Buildozer failed — printing last 200 lines of log" && tail -n 200 ./.buildozer/android/platform-*/*/buildozer.log || true ; exit 1)
       shell: bash
 
