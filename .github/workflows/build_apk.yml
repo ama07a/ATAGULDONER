@@ -52,5 +52,6 @@ jobs:
           --bootstrap=sdl2 \
           --requirements=pygame,python3 \
           --arch=arm64-v8a \
+          --android-api 34 \
           --skip-build-pygame-c \
           --add-asset ./ATAGULDONER/assets
