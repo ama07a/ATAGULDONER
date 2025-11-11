@@ -9,46 +9,41 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
-    env:
-      ANDROID_SDK_ROOT: /opt/android-sdk
-      ANDROID_HOME: /opt/android-sdk
-      PATH: /opt/android-sdk/cmdline-tools/latest/bin:$PATH
 
     steps:
     - name: Checkout repository
       uses: actions/checkout@v4
 
-    - name: Set up Python
-      uses: actions/setup-python@v4
-      with:
-        python-version: 3.14
-
     - name: Install Linux dependencies
       run: |
         sudo apt-get update
         sudo apt-get install -y \
-          python3-venv python3-pip build-essential wget unzip tar git openjdk-11-jdk
+          tar unzip wget git build-essential openjdk-11-jdk python3-venv python3-pip
 
-    - name: Create virtualenv and install P4A
-      run: |
-        python3 -m venv venv
-        source venv/bin/activate
-        pip install --upgrade pip
-        pip install cython python-for-android
+    - name: Setup Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.14'
 
-    - name: Install Android SDK & NDK
+    - name: Install pip packages
       run: |
-        sudo mkdir -p /opt/android-sdk/cmdline-tools
+        python -m pip install --upgrade pip
+        pip install cython
+        pip install python-for-android==2024.01.21 pygame
+
+    - name: Download Android SDK & NDK
+      run: |
+        mkdir -p $HOME/Android/Sdk/cmdline-tools
         wget https://dl.google.com/android/repository/commandlinetools-linux-9477386_latest.zip -O cmdline-tools.zip
-        sudo unzip -d /opt/android-sdk/cmdline-tools cmdline-tools.zip
-        yes | /opt/android-sdk/cmdline-tools/cmdline-tools/bin/sdkmanager --licenses
-        /opt/android-sdk/cmdline-tools/cmdline-tools/bin/sdkmanager "platform-tools" "platforms;android-33" "ndk;25.2.9519653"
+        unzip cmdline-tools.zip -d $HOME/Android/Sdk/cmdline-tools
+        rm cmdline-tools.zip
+        yes | $HOME/Android/Sdk/cmdline-tools/cmdline-tools/bin/sdkmanager --licenses
+        $HOME/Android/Sdk/cmdline-tools/cmdline-tools/bin/sdkmanager "platform-tools" "platforms;android-33" "ndk;26.1.10909125"
 
     - name: Build APK
       run: |
-        source venv/bin/activate
-        p4a apk \
-          --private ./ATAGULDONER_folder \
+        python -m pythonforandroid.toolchain apk \
+          --private ./ATAGULDONER \
           --package=org.yourname.ataguldoner \
           --name "ATAGULDONER" \
           --version 1.0 \
@@ -56,8 +51,10 @@ jobs:
           --requirements=pygame,python3 \
           --arch=arm64-v8a \
           --skip-build-pygame-c \
-          --output ./dist
-
+          --sdk-dir $HOME/Android/Sdk \
+          --ndk-dir $HOME/Android/Sdk/ndk/26.1.10909125 \
+          --android-api 33
+          
     - name: Upload APK
       uses: actions/upload-artifact@v4
       with:
