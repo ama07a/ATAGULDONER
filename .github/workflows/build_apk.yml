@@ -52,7 +52,7 @@ jobs:
         mkdir -p $ANDROID_HOME
         export PATH=$HOME/android/cmdline-tools/latest/bin:$PATH
         yes | sdkmanager --sdk_root="$ANDROID_HOME" --licenses
-        sdkmanager --sdk_root="$ANDROID_HOME" "platform-tools" "platforms;android-34" "build-tools;34.0.0" "ndk;25.2.9519653"
+       sdkmanager --sdk_root="$ANDROID_HOME" "platform-tools" "platforms;android-34" "build-tools;34.0.0" "ndk;25.2.9519653"
         echo "ANDROIDSDK=$ANDROID_HOME" >> $GITHUB_ENV
         echo "ANDROIDNDK=$ANDROID_HOME/ndk/25.2.9519653" >> $GITHUB_ENV
         echo "PATH=$HOME/android/cmdline-tools/latest/bin:$ANDROID_HOME/platform-tools:$PATH" >> $GITHUB_ENV
