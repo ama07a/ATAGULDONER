@@ -24,6 +24,15 @@ jobs:
         sudo apt-get install -y wget unzip git build-essential openjdk-11-jdk python3-venv python3-pip tar \
           libglu1-mesa-dev freeglut3-dev mesa-common-dev autoconf automake libtool pkg-config
 
+    - name: Download and setup Android SDK
+      run: |
+        mkdir -p $HOME/Android/Sdk/cmdline-tools
+        cd $HOME/Android/Sdk/cmdline-tools
+        wget https://dl.google.com/android/repository/commandlinetools-linux-9477386_latest.zip -O cmdline-tools.zip
+        unzip cmdline-tools.zip -d latest
+        yes | $HOME/Android/Sdk/cmdline-tools/latest/bin/sdkmanager --licenses
+        $HOME/Android/Sdk/cmdline-tools/latest/bin/sdkmanager "platform-tools" "platforms;android-33" "build-tools;33.0.2"
+
     - name: Setup virtualenv
       run: |
         python3 -m venv p4a-venv
@@ -32,6 +41,9 @@ jobs:
         pip install python-for-android==2024.01.21 Cython pygame==2.5.2
 
     - name: Build APK
+      env:
+        ANDROIDSDK: $HOME/Android/Sdk
+        ANDROIDNDK: $HOME/Android/Sdk/ndk/25.2.9519653
       run: |
         source p4a-venv/bin/activate
         p4a apk \
@@ -44,4 +56,7 @@ jobs:
           --arch=arm64-v8a \
           --skip-build-pygame-c \
           --ignore-setup-py \
-          --add-asset ./ATAGULDONER/assets
+          --add-asset ./ATAGULDONER/assets \
+          --sdk-dir $ANDROIDSDK \
+          --ndk-dir $ANDROIDNDK \
+          --android-api 33
