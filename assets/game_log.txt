@@ -1,0 +1,3 @@
+[2025-10-28 12:20:04] music not found: C:\Users\Ben\PycharmProjects\PythonProject2\assets\assets\music1.mp3
+[2025-10-28 12:20:23] music not found: C:\Users\Ben\PycharmProjects\PythonProject2\assets\assets\music1.mp3
+[2025-10-28 12:20:38] music not found: C:\Users\Ben\PycharmProjects\PythonProject2\assets\assets\music1.mp3

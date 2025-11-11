@@ -1,0 +1,18 @@
+[2025-11-03 18:37:41] DPI awareness: SetProcessDpiAwarenessContext(-4) applied.
+[2025-11-03 18:37:41] Missing common DLLs: ['libogg.dll', 'libvorbis.dll', 'libvorbisfile.dll', 'libopus.dll', 'python3.dll']
+[2025-11-03 18:37:41] Warning: Some SDL/pygame DLLs not found at runtime. Packaging should include them; continuing anyway.
+[2025-11-03 18:37:43] Image load failed: C:\Users\Ben\PycharmProjects\PythonProject2\assets\assets/background.png -> No such file or directory: 'C:\Users\Ben\PycharmProjects\PythonProject2\assets\assets/background.png'.
+[2025-11-03 18:37:43] Image load failed: C:\Users\Ben\PycharmProjects\PythonProject2\assets\assets/counter.png -> No such file or directory: 'C:\Users\Ben\PycharmProjects\PythonProject2\assets\assets/counter.png'.
+[2025-11-03 18:37:43] Image load failed: C:\Users\Ben\PycharmProjects\PythonProject2\assets\assets/lavash.png -> No such file or directory: 'C:\Users\Ben\PycharmProjects\PythonProject2\assets\assets/lavash.png'.
+[2025-11-03 18:37:43] Image load failed: C:\Users\Ben\PycharmProjects\PythonProject2\assets\assets/meat.png -> No such file or directory: 'C:\Users\Ben\PycharmProjects\PythonProject2\assets\assets/meat.png'.
+[2025-11-03 18:37:43] Image load failed: C:\Users\Ben\PycharmProjects\PythonProject2\assets\assets/tomato.png -> No such file or directory: 'C:\Users\Ben\PycharmProjects\PythonProject2\assets\assets/tomato.png'.
+[2025-11-03 18:37:43] Image load failed: C:\Users\Ben\PycharmProjects\PythonProject2\assets\assets/lettuce.png -> No such file or directory: 'C:\Users\Ben\PycharmProjects\PythonProject2\assets\assets/lettuce.png'.
+[2025-11-03 18:37:43] Image load failed: C:\Users\Ben\PycharmProjects\PythonProject2\assets\assets/fries.png -> No such file or directory: 'C:\Users\Ben\PycharmProjects\PythonProject2\assets\assets/fries.png'.
+[2025-11-03 18:37:43] Image load failed: C:\Users\Ben\PycharmProjects\PythonProject2\assets\assets/doner.png -> No such file or directory: 'C:\Users\Ben\PycharmProjects\PythonProject2\assets\assets/doner.png'.
+[2025-11-03 18:37:43] Image load failed: C:\Users\Ben\PycharmProjects\PythonProject2\assets\assets/tr.png -> No such file or directory: 'C:\Users\Ben\PycharmProjects\PythonProject2\assets\assets/tr.png'.
+[2025-11-03 18:37:43] Image load failed: C:\Users\Ben\PycharmProjects\PythonProject2\assets\assets/us.png -> No such file or directory: 'C:\Users\Ben\PycharmProjects\PythonProject2\assets\assets/us.png'.
+[2025-11-03 18:37:43] Image load failed: C:\Users\Ben\PycharmProjects\PythonProject2\assets\assets/customer_1.png -> No such file or directory: 'C:\Users\Ben\PycharmProjects\PythonProject2\assets\assets/customer_1.png'.
+[2025-11-03 18:37:43] Image load failed: C:\Users\Ben\PycharmProjects\PythonProject2\assets\assets/customer_2.png -> No such file or directory: 'C:\Users\Ben\PycharmProjects\PythonProject2\assets\assets/customer_2.png'.
+[2025-11-03 18:37:43] Image load failed: C:\Users\Ben\PycharmProjects\PythonProject2\assets\assets/customer_3.png -> No such file or directory: 'C:\Users\Ben\PycharmProjects\PythonProject2\assets\assets/customer_3.png'.
+[2025-11-03 18:37:43] Image load failed: C:\Users\Ben\PycharmProjects\PythonProject2\assets\assets/customer_4.png -> No such file or directory: 'C:\Users\Ben\PycharmProjects\PythonProject2\assets\assets/customer_4.png'.
+[2025-11-03 18:37:43] Image load failed: C:\Users\Ben\PycharmProjects\PythonProject2\assets\assets/customer_5.png -> No such file or directory: 'C:\Users\Ben\PycharmProjects\PythonProject2\assets\assets/customer_5.png'.
