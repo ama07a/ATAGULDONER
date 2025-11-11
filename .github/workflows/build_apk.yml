@@ -1,4 +1,4 @@
-name: Android APK Build
+name: Build ATAGULDONER APK
 
 on:
   push:
@@ -34,32 +34,36 @@ jobs:
           pip install --upgrade pip setuptools wheel
           pip install buildozer==1.5.0 Cython virtualenv
 
-      - name: Set up Android SDK and NDK
+      - name: Download and Set up Android SDK & NDK
         run: |
           mkdir -p $HOME/android/cmdline-tools
           cd $HOME/android/cmdline-tools
           wget https://dl.google.com/android/repository/commandlinetools-linux-9477386_latest.zip -O cmdtools.zip
-          unzip cmdtools.zip
-          mkdir -p $HOME/android/sdk
-          yes | ./bin/sdkmanager --sdk_root=$HOME/android/sdk --licenses
-          yes | ./bin/sdkmanager --sdk_root=$HOME/android/sdk "platform-tools" "platforms;android-34" "build-tools;34.0.0" "ndk;26.1.10909125"
+          unzip cmdtools.zip -d latest
+          yes | $HOME/android/cmdline-tools/latest/bin/sdkmanager --sdk_root=$HOME/android/sdk --licenses
+          yes | $HOME/android/cmdline-tools/latest/bin/sdkmanager --sdk_root=$HOME/android/sdk "platform-tools" "platforms;android-34" "build-tools;34.0.0" "ndk;26.1.10909125"
           echo "ANDROIDSDK=$HOME/android/sdk" >> $GITHUB_ENV
           echo "ANDROIDNDK=$HOME/android/sdk/ndk/26.1.10909125" >> $GITHUB_ENV
           echo "PATH=$PATH:$HOME/android/sdk/platform-tools:$HOME/android/sdk/build-tools/34.0.0" >> $GITHUB_ENV
 
-      - name: Initialize Buildozer
+      - name: Initialize Buildozer (if missing)
         run: |
           if [ ! -f buildozer.spec ]; then
             buildozer init
           fi
 
-      - name: Fix Buildozer spec (auto Android 34)
+      - name: Configure Buildozer spec
         run: |
           sed -i 's/^android.api =.*/android.api = 34/' buildozer.spec || echo "android.api = 34" >> buildozer.spec
           sed -i 's/^android.ndk =.*/android.ndk = 26.1.10909125/' buildozer.spec || echo "android.ndk = 26.1.10909125" >> buildozer.spec
           sed -i 's/^android.minapi =.*/android.minapi = 24/' buildozer.spec || echo "android.minapi = 24" >> buildozer.spec
           sed -i 's/^android.sdk =.*/android.sdk = 34/' buildozer.spec || echo "android.sdk = 34" >> buildozer.spec
           sed -i 's/^android.accept_sdk_license =.*/android.accept_sdk_license = True/' buildozer.spec || echo "android.accept_sdk_license = True" >> buildozer.spec
+          sed -i 's/^title =.*/title = ATAGULDONER/' buildozer.spec || echo "title = ATAGULDONER" >> buildozer.spec
+          sed -i 's/^package.name =.*/package.name = ataguldoner/' buildozer.spec || echo "package.name = ataguldoner" >> buildozer.spec
+          sed -i 's/^package.domain =.*/package.domain = org.atagul/' buildozer.spec || echo "package.domain = org.atagul" >> buildozer.spec
+          sed -i 's/^source.dir =.*/source.dir = ./ATAGULDONER/' buildozer.spec || echo "source.dir = ./ATAGULDONER" >> buildozer.spec
+          sed -i 's/^requirements =.*/requirements = python3, pygame/' buildozer.spec || echo "requirements = python3, pygame" >> buildozer.spec
 
       - name: Build APK
         env:
@@ -71,5 +75,5 @@ jobs:
       - name: Upload APK Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: FixedShooter-APK
+          name: ATAGULDONER-APK
           path: bin/*.apk
