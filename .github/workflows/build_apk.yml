@@ -12,6 +12,7 @@ jobs:
     env:
       ANDROID_SDK_ROOT: /opt/android-sdk
       ANDROID_HOME: /opt/android-sdk
+      PATH: /opt/android-sdk/cmdline-tools/latest/bin:$PATH
 
     steps:
     - name: Checkout repository
@@ -22,25 +23,25 @@ jobs:
       with:
         python-version: 3.14
 
-    - name: Install dependencies
+    - name: Install Linux dependencies
       run: |
         sudo apt-get update
-        sudo apt-get install -y python3-pip python3-venv build-essential unzip tar wget git openjdk-11-jdk
-        python3 -m pip install --upgrade pip
+        sudo apt-get install -y python3-venv python3-pip build-essential wget unzip tar git openjdk-11-jdk
+
+    - name: Create virtualenv and install P4A
+      run: |
         python3 -m venv venv
         source venv/bin/activate
-        pip install --upgrade cython python-for-android
+        pip install --upgrade pip
+        pip install cython python-for-android
 
     - name: Install Android SDK & NDK
       run: |
-        sudo apt-get update
-        sudo apt-get install -y unzip tar
         sudo mkdir -p /opt/android-sdk/cmdline-tools
-        cd /opt/android-sdk
         wget https://dl.google.com/android/repository/commandlinetools-linux-9477386_latest.zip -O cmdline-tools.zip
-        unzip cmdline-tools.zip -d cmdline-tools
-        yes | cmdline-tools/cmdline-tools/bin/sdkmanager --licenses
-        cmdline-tools/cmdline-tools/bin/sdkmanager "platform-tools" "platforms;android-33" "ndk;25.2.9519653"
+        sudo unzip -d /opt/android-sdk/cmdline-tools cmdline-tools.zip
+        yes | /opt/android-sdk/cmdline-tools/cmdline-tools/bin/sdkmanager --licenses
+        /opt/android-sdk/cmdline-tools/cmdline-tools/bin/sdkmanager "platform-tools" "platforms;android-33" "ndk;25.2.9519653"
 
     - name: Build APK
       run: |
