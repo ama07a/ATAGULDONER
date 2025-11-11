@@ -1,13 +1,15 @@
-name: Build Android APK
+name: Build ATAGULDONER APK
 
 on:
   push:
-    branches: [ main ]
+    branches:
+      - main
   workflow_dispatch:
 
 jobs:
-  build:
+  build-apk:
     runs-on: ubuntu-latest
+
     steps:
       - name: Checkout repo
         uses: actions/checkout@v3
@@ -20,24 +22,24 @@ jobs:
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install pygame python-for-android cython
+          pip install python-for-android cython pygame
 
       - name: Build APK
         run: |
-          mkdir -p /tmp/build
-          python -m pythonforandroid.toolchain apk \
+          mkdir -p build
+          p4a apk \
             --private . \
             --package org.yourname.ataguldoner \
             --name "ATAGULDONER" \
             --version 1.0 \
-            --bootstrap=sdl2 \
-            --requirements=python3,pygame \
-            --arch=arm64-v8a \
+            --bootstrap sdl2 \
+            --requirements pygame,python3 \
+            --arch arm64-v8a \
             --skip-build-pygame-c \
-            --output /tmp/build/ATAGULDONER.apk
+            --output build/ATAGULDONER.apk
 
       - name: Upload APK
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: ATAGULDONER.apk
-          path: /tmp/build/ATAGULDONER.apk
+          path: build/ATAGULDONER.apk
