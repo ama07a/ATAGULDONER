@@ -4,45 +4,47 @@ on:
   push:
     branches:
       - main
-  workflow_dispatch:
 
 jobs:
-  build:
+  build-apk:
     runs-on: ubuntu-latest
 
     steps:
-    - name: Checkout repository
+    - name: Checkout repo
       uses: actions/checkout@v4
-
-    - name: Install Linux dependencies
-      run: |
-        sudo apt-get update
-        sudo apt-get install -y \
-          tar unzip wget git build-essential openjdk-11-jdk python3-venv python3-pip
 
     - name: Setup Python
       uses: actions/setup-python@v4
       with:
-        python-version: '3.14'
+        python-version: '3.11'  # P4A ile uyumlu sürüm
 
-    - name: Install pip packages
+    - name: Install Linux dependencies
       run: |
-        python -m pip install --upgrade pip
-        pip install cython
-        pip install python-for-android==2024.01.21 pygame
+        sudo apt-get update
+        sudo apt-get install -y wget unzip git build-essential openjdk-11-jdk python3-venv python3-pip tar \
+          libglu1-mesa-dev freeglut3-dev mesa-common-dev
 
-    - name: Download Android SDK & NDK
+    - name: Download SDL2
       run: |
-        mkdir -p $HOME/Android/Sdk/cmdline-tools
-        wget https://dl.google.com/android/repository/commandlinetools-linux-9477386_latest.zip -O cmdline-tools.zip
-        unzip cmdline-tools.zip -d $HOME/Android/Sdk/cmdline-tools
-        rm cmdline-tools.zip
-        yes | $HOME/Android/Sdk/cmdline-tools/cmdline-tools/bin/sdkmanager --licenses
-        $HOME/Android/Sdk/cmdline-tools/cmdline-tools/bin/sdkmanager "platform-tools" "platforms;android-33" "ndk;26.1.10909125"
+        wget https://www.libsdl.org/release/SDL2-2.26.5.tar.gz
+        tar -xzf SDL2-2.26.5.tar.gz
+        cd SDL2-2.26.5
+        ./configure --prefix=$HOME/SDL2
+        make -j$(nproc)
+        make install
+      shell: bash
+
+    - name: Setup virtualenv
+      run: |
+        python3 -m venv p4a-venv
+        source p4a-venv/bin/activate
+        pip install --upgrade pip
+        pip install python-for-android==2024.01.21 Cython
 
     - name: Build APK
       run: |
-        python -m pythonforandroid.toolchain apk \
+        source p4a-venv/bin/activate
+        p4a apk \
           --private ./ATAGULDONER \
           --package=org.yourname.ataguldoner \
           --name "ATAGULDONER" \
@@ -51,12 +53,4 @@ jobs:
           --requirements=pygame,python3 \
           --arch=arm64-v8a \
           --skip-build-pygame-c \
-          --sdk-dir $HOME/Android/Sdk \
-          --ndk-dir $HOME/Android/Sdk/ndk/26.1.10909125 \
-          --android-api 33
-          
-    - name: Upload APK
-      uses: actions/upload-artifact@v4
-      with:
-        name: ATAGULDONER.apk
-        path: ./dist/*.apk
+          --add-asset ./ATAGULDONER/assets
