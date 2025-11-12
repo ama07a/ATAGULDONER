@@ -25,29 +25,28 @@ jobs:
         pip install --upgrade pip
         pip install buildozer cython==0.29.36 virtualenv
 
-   - name: Set up Android SDK and NDK
-  run: |
-    export ANDROID_HOME=$HOME/android-sdk
-    export PATH=$PATH:$ANDROID_HOME/cmdline-tools/latest/bin:$ANDROID_HOME/platform-tools
-    mkdir -p $ANDROID_HOME/cmdline-tools
-    cd $ANDROID_HOME/cmdline-tools
+    - name: Set up Android SDK and NDK
+      run: |
+        export ANDROID_HOME=$HOME/android-sdk
+        export PATH=$PATH:$ANDROID_HOME/cmdline-tools/latest/bin:$ANDROID_HOME/platform-tools
+        mkdir -p $ANDROID_HOME/cmdline-tools
+        cd $ANDROID_HOME/cmdline-tools
 
-    echo "📦 Downloading Android command line tools..."
-    wget https://dl.google.com/android/repository/commandlinetools-linux-11076708_latest.zip -O tools.zip
-    unzip tools.zip -d cmdline-tools
-    rm tools.zip
+        echo "📦 Downloading Android command line tools..."
+        wget https://dl.google.com/android/repository/commandlinetools-linux-11076708_latest.zip -O tools.zip
+        unzip tools.zip -d cmdline-tools
+        rm tools.zip
 
-    # move extracted folder properly to 'latest/'
-    mkdir -p latest
-    mv cmdline-tools/* latest/
+        # move extracted folder properly to 'latest/'
+        mkdir -p latest
+        mv cmdline-tools/* latest/
 
-    echo "✅ Accepting licenses..."
-    yes | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --licenses || true
+        echo "✅ Accepting licenses..."
+        yes | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --licenses || true
 
-    echo "📦 Installing SDK components..."
-    yes | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager \
-      "platform-tools" "platforms;android-34" "build-tools;34.0.0" "ndk;25.2.9519653"
-
+        echo "📦 Installing SDK components..."
+        yes | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager \
+          "platform-tools" "platforms;android-34" "build-tools;34.0.0" "ndk;25.2.9519653"
 
     - name: Verify SDK installation
       run: |
