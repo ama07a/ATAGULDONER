@@ -1,69 +1,26 @@
 [app]
-
-# (str) Title of your application
-title = ATAGULDONER
-
-# (str) Package name
-package.name = ataguldoner
-
-# (str) Package domain (unique)
+title = ATAGUL DONER
+package.name = atagul_doner
 package.domain = org.atagul
-
-# (str) Source code where main.py is located
-source.dir = ./ATAGULDONER
-
-# (list) Source files to include (let empty to include all)
-#source.include_exts = py,png,jpg,kv,atlas
-
-# (list) Application requirements
-requirements = python3,pygame
-
-# (str) Icon of the application
-#icon.filename = %(source.dir)s/icon.png
-
-# (str) Supported orientation: portrait, landscape, all
-orientation = portrait
-
-# (bool) Indicate if the application should be fullscreen
-fullscreen = 0
-
-# (bool) Presplash image (optional)
-#presplash.filename = %(source.dir)s/presplash.png
-
-# (bool) Include all dependencies for the Android build
-#android.add_libs_armeabi_v7a = 
-
-# (bool) Accept Android SDK licenses automatically
-android.accept_sdk_license = True
-
-# (int) Target Android API
+source.dir = .
+source.include_exts = py,png,jpg,jpeg,mp3,wav,ogg,ttf,kv,json,txt
+version = 1.0.0
+requirements = python3, kivy
+orientation = landscape
+fullscreen = 1
+android.arch = armeabi-v7a
 android.api = 34
-
-# (int) Minimum Android API your APK will support
-android.minapi = 24
-
-# (str) Android NDK version
+android.minapi = 21
 android.ndk = 25.2.9519653
-
-# (str) Android Build Tools version
-android.build_tools = 34.0.0
-
-# (bool) Copy permissions from main.py to Android manifest
-#android.permissions = INTERNET
-
-# (str) Presplash orientation
-#presplash.orientation = portrait
-
-# (bool) Use Python3 for the build
-#python3 = True
-
-[buildozer]
-
-# (str) log level (0-2)
+android.sdk = 34
+android.permissions = INTERNET,WRITE_EXTERNAL_STORAGE,READ_EXTERNAL_STORAGE
+android.allow_backup = False
+android.debug = False
+android.entrypoint = main.py
 log_level = 2
 
-# (bool) Copy source files to .buildozer/android/platform/python-for-android
-copy_source = True
-
-# (str) Directory for the compiled APK
-bin_dir = bin
+[buildozer]
+log_level = 2
+warn_on_root = 0
+build_dir = .buildozer
+output_dir = bin
