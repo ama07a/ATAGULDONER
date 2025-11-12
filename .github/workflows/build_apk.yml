@@ -88,11 +88,9 @@ jobs:
           done
         }
 
-        # ✅ Android 34 platformu tamamen indiriliyor
         retry 4 "$SDKMAN" --sdk_root="$ANDROID_HOME" --install \
           "platform-tools" "platforms;android-34" "build-tools;34.0.0" "ndk;25.2.9519653"
 
-        # ✅ platform-34 dizininin varlığını doğrula
         ls -la "$ANDROID_HOME/platforms" || true
 
         echo "ANDROIDSDK=$ANDROID_HOME" >> "$GITHUB_ENV"
@@ -113,8 +111,6 @@ jobs:
     - name: Ensure main.py exists (copy möm.py -> main.py if necessary)
       run: |
         set -euo pipefail
-        SOURCE_DIR="."
-        cd "$SOURCE_DIR"
         if [ -f "main.py" ]; then
           echo "main.py exists; ok."
         elif [ -f "möm.py" ]; then
@@ -160,3 +156,21 @@ jobs:
           dist/*.apk
           bin/*.apk
           ./*.apk
+
+    - name: 📦 Create GitHub Release and upload APK
+      uses: softprops/action-gh-release@v2
+      if: success()
+      with:
+        tag_name: "v1.0-${{ github.run_number }}"
+        name: "ATAGULDONER v1.0 (Build ${{ github.run_number }})"
+        body: |
+          ✅ Otomatik olarak oluşturulmuş Android APK  
+          📅 Tarih: ${{ github.event.head_commit.timestamp }}  
+          🧩 Commit: ${{ github.sha }}  
+          🎮 Proje: ATAGULDONER  
+        files: |
+          dist/*.apk
+          bin/*.apk
+          ./*.apk
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
