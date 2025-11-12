@@ -1,4 +1,4 @@
-name: Build Android APK with Buildozer
+name: Build Android APK
 
 on:
   push:
@@ -16,66 +16,56 @@ jobs:
     - name: Set up Python
       uses: actions/setup-python@v5
       with:
-        python-version: '3.10'
+        python-version: "3.11"
 
-    - name: Install system dependencies
+    - name: Install dependencies
       run: |
         sudo apt update
-        sudo apt install -y zip unzip openjdk-17-jdk python3-pip libssl-dev \
-          libffi-dev build-essential git wget
+        sudo apt install -y python3-pip git zip unzip openjdk-17-jdk wget
+        pip install --upgrade pip
+        pip install buildozer cython==0.29.36 virtualenv
 
-    - name: Install Buildozer
+    - name: Set up Android SDK and NDK
       run: |
-        pip install --upgrade pip setuptools wheel
-        pip install buildozer cython
-
-    - name: Set up Android SDK & NDK
-      run: |
-        mkdir -p $HOME/android-sdk
-        mkdir -p $HOME/android-ndk
-        cd $HOME/android-sdk
-        echo "Downloading Android commandline tools..."
-        wget --retry-connrefused --waitretry=3 --read-timeout=20 --timeout=15 -t 0 \
-          https://dl.google.com/android/repository/commandlinetools-linux-9477386_latest.zip -O cmdtools.zip
-        unzip -q cmdtools.zip -d cmdline-tools
-        mkdir -p $HOME/android-sdk/cmdline-tools/latest
-        mv cmdline-tools/* $HOME/android-sdk/cmdline-tools/latest/
-        yes | $HOME/android-sdk/cmdline-tools/latest/bin/sdkmanager --licenses || true
-        yes | $HOME/android-sdk/cmdline-tools/latest/bin/sdkmanager \
-          "platform-tools" "platforms;android-34" "build-tools;34.0.0"
-
-        cd $HOME/android-ndk
-        echo "Downloading NDK..."
-        wget --retry-connrefused --waitretry=3 --read-timeout=20 --timeout=15 -t 0 \
-          https://dl.google.com/android/repository/android-ndk-r25c-linux.zip -O ndk.zip
-        unzip -q ndk.zip
-        mv android-ndk-r25c $HOME/android-ndk
-
-    - name: Configure environment
-      run: |
-        echo "ANDROIDSDK=$HOME/android-sdk" >> $GITHUB_ENV
-        echo "ANDROIDNDK=$HOME/android-ndk" >> $GITHUB_ENV
-        echo "ANDROID_HOME=$HOME/android-sdk" >> $GITHUB_ENV
-        echo "PATH=$PATH:$HOME/android-sdk/cmdline-tools/latest/bin:$HOME/android-sdk/platform-tools" >> $GITHUB_ENV
-
-    - name: Prepare buildozer.spec
-      run: |
-        if [ ! -f buildozer.spec ]; then
-          buildozer init
-          sed -i 's/# version = 0.1/version = 1.0/g' buildozer.spec
-        else
-          grep -q "^version" buildozer.spec || echo "version = 1.0" >> buildozer.spec
-        fi
-
-    - name: Build APK
-      run: |
-        export ANDROIDSDK=$HOME/android-sdk
-        export ANDROIDNDK=$HOME/android-ndk
         export ANDROID_HOME=$HOME/android-sdk
+        export PATH=$PATH:$ANDROID_HOME/cmdline-tools/latest/bin:$ANDROID_HOME/platform-tools
+        mkdir -p $ANDROID_HOME/cmdline-tools
+        cd $ANDROID_HOME/cmdline-tools
+
+        echo "📦 Downloading Android command line tools..."
+        wget https://dl.google.com/android/repository/commandlinetools-linux-11076708_latest.zip -O tools.zip
+        unzip tools.zip -d cmdline-tools
+        rm tools.zip
+
+        # move extracted folder properly to 'latest/'
+        mkdir -p latest
+        mv cmdline-tools/* latest/
+
+        echo "✅ Accepting licenses..."
+        yes | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --licenses || true
+
+        echo "📦 Installing SDK components..."
+        yes | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager \
+          "platform-tools" "platforms;android-34" "build-tools;34.0.0" "ndk;25.2.9519653"
+
+    - name: Verify SDK installation
+      run: |
+        export ANDROID_HOME=$HOME/android-sdk
+        export PATH=$PATH:$ANDROID_HOME/cmdline-tools/latest/bin:$ANDROID_HOME/platform-tools
+        echo "🔍 SDK Tools in:"
+        ls -R $ANDROID_HOME/cmdline-tools/
+        which sdkmanager || echo "⚠️ sdkmanager not found!"
+        which adb || echo "⚠️ adb not found!"
+        which aidl || echo "⚠️ aidl not found!"
+
+    - name: Build APK with Buildozer
+      run: |
+        export ANDROID_HOME=$HOME/android-sdk
+        export PATH=$PATH:$ANDROID_HOME/cmdline-tools/latest/bin:$ANDROID_HOME/platform-tools
         buildozer android debug
 
     - name: Upload APK artifact
       uses: actions/upload-artifact@v4
       with:
-        name: built-apk
+        name: atagul-doner-apk
         path: bin/*.apk
