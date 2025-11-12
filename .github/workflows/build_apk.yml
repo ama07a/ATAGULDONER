@@ -30,7 +30,6 @@ jobs:
       shell: bash
 
     - name: Prepare Android commandline tools
-      id: sdkprep
       run: |
         set -euo pipefail
         CD="$RUNNER_TEMP/android-cmdline"
@@ -45,8 +44,6 @@ jobs:
         mkdir -p "$ANDROID_HOME/cmdline-tools"
         if [ -d cmdline-tools/cmdline-tools ]; then
           mv cmdline-tools/cmdline-tools "$ANDROID_HOME/cmdline-tools/latest"
-        elif [ -d cmdline-tools/bin ]; then
-          mv cmdline-tools "$ANDROID_HOME/cmdline-tools/latest"
         else
           mkdir -p "$ANDROID_HOME/cmdline-tools/latest"
           mv cmdline-tools/* "$ANDROID_HOME/cmdline-tools/latest/" || true
@@ -70,12 +67,14 @@ jobs:
           SDKMAN=$(command -v sdkmanager || true)
         fi
         if [ -z "$SDKMAN" ]; then
-          echo "sdkmanager not found"
+          echo "sdkmanager not found."
           exit 127
         fi
 
-        printf '%s\n' y | "$SDKMAN" --sdk_root="$ANDROID_HOME" --licenses > /dev/null 2>&1 || true
+        # Accept licenses
+        yes | "$SDKMAN" --sdk_root="$ANDROID_HOME" --licenses || true
 
+        # retry helper
         retry() {
           local tries=${1:-4}; shift
           local cmd=( "$@" )
@@ -94,10 +93,11 @@ jobs:
           done
         }
 
+        # Install required SDK components for API 34
         retry 4 "$SDKMAN" --sdk_root="$ANDROID_HOME" --install \
           "platform-tools" \
-          "platforms;android-33" \
-          "build-tools;33.0.0" \
+          "platforms;android-34" \
+          "build-tools;34.0.0" \
           "ndk;25.2.9519653"
 
         echo "ANDROIDSDK=$ANDROID_HOME" >> "$GITHUB_ENV"
@@ -105,34 +105,31 @@ jobs:
         echo "PATH=$ANDROID_HOME/platform-tools:$ANDROID_HOME/cmdline-tools/latest/bin:$PATH" >> "$GITHUB_ENV"
       shell: bash
 
-    - name: Create Python venv & install python-for-android
+    - name: Create Python venv & install python-for-android deps
       run: |
         set -euo pipefail
         python3 -m venv .p4a-venv
         source .p4a-venv/bin/activate
         python -m pip install --upgrade pip setuptools wheel
         pip install "python-for-android==2024.01.21" "Cython==3.2.0"
+        python -c "import pythonforandroid; print('p4a version:', getattr(pythonforandroid,'__version__','unknown'))"
       shell: bash
 
-    - name: Ensure main.py exists (copy möm.py if needed)
+    - name: Ensure main.py exists
       run: |
         set -euo pipefail
-        cd "${GITHUB_WORKSPACE:-$(pwd)}"
         if [ -f "main.py" ]; then
           echo "main.py exists"
         elif [ -f "möm.py" ]; then
-          echo "Copying möm.py -> main.py"
-          cp "möm.py" main.py
-        elif [ -f "mom.py" ]; then
-          echo "Copying mom.py -> main.py"
-          cp "mom.py" main.py
+          cp möm.py main.py
+          echo "Copied möm.py -> main.py"
         else
-          echo "No main.py or möm.py found in repo root"
+          echo "No main.py or möm.py found"
           ls -la
         fi
       shell: bash
 
-    - name: Build APK with python-for-android
+    - name: Build APK with python-for-android (p4a)
       env:
         ANDROIDSDK: ${{ env.ANDROIDSDK }}
         ANDROIDNDK: ${{ env.ANDROIDNDK }}
@@ -140,7 +137,6 @@ jobs:
       run: |
         set -euo pipefail
         source .p4a-venv/bin/activate
-        cd "${GITHUB_WORKSPACE:-$(pwd)}"
         echo "Building APK..."
         p4a apk \
           --private . \
@@ -153,7 +149,7 @@ jobs:
           --sdk-dir "$ANDROIDSDK" \
           --ndk-dir "$ANDROIDNDK" \
           --skip-build-pygame-c \
-          --debug || (echo "p4a failed; printing last 300 lines of build log"; tail -n 300 ~/.local/share/python-for-android/build.log 2>/dev/null || true; exit 1)
+          --debug || (echo "p4a failed, printing last 300 lines of build log"; tail -n 300 ~/.local/share/python-for-android/build.log || true ; exit 1)
       shell: bash
 
     - name: Upload APK artifact
