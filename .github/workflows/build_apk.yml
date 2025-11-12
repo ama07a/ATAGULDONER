@@ -1,105 +1,52 @@
-name: Build ATAGULDONER APK
+name: Build Android APK
 
 on:
   push:
-    branches: [ main ]
+    branches:
+      - main
   workflow_dispatch:
 
 jobs:
   build:
     runs-on: ubuntu-latest
-    timeout-minutes: 180
 
     steps:
     - name: Checkout repository
       uses: actions/checkout@v4
 
-    - name: Set up Python 3.11
-      uses: actions/setup-python@v4
+    - name: Set up Python
+      uses: actions/setup-python@v5
       with:
-        python-version: '3.11'
+        python-version: "3.11"
 
-    - name: Install system packages
+    - name: Install dependencies
       run: |
-        sudo apt-get update
-        sudo apt-get install -y \
-          wget unzip zip tar git build-essential pkg-config autoconf automake libtool \
-          python3-venv python3-pip python3-dev openjdk-17-jdk \
-          libsdl2-dev libsdl2-image-dev libsdl2-mixer-dev libsdl2-ttf-dev
+        sudo apt update
+        sudo apt install -y python3-pip git zip unzip openjdk-17-jdk
+        pip install --upgrade pip
+        pip install buildozer cython==0.29.36 virtualenv
 
-    - name: Download Android commandline tools
-      run: |
-        mkdir -p $HOME/android
-        cd $HOME/android
-        wget -q https://dl.google.com/android/repository/commandlinetools-linux-9477386_latest.zip -O cmdtools.zip
-        unzip -q cmdtools.zip -d cmdline-tools
-        if [ -d cmdline-tools/cmdline-tools ]; then
-          mv cmdline-tools/cmdline-tools cmdline-tools/latest
-        elif [ -d cmdline-tools/bin ]; then
-          mv cmdline-tools cmdline-tools/latest
-        else
-          mkdir -p cmdline-tools/latest
-          mv cmdline-tools/* cmdline-tools/latest/ || true
-        fi
-        rm -f cmdtools.zip
-      shell: bash
-
-    - name: Install SDK packages and accept licenses
+    - name: Set up Android SDK & NDK
       env:
-        ANDROID_SDK_ROOT: ${{ github.workspace }}/android/sdk
+        ANDROID_HOME: ${{ github.workspace }}/.buildozer/android/platform/android-sdk
       run: |
-        export ANDROID_HOME=$HOME/android/sdk
-        mkdir -p $ANDROID_HOME
-        export PATH=$HOME/android/cmdline-tools/latest/bin:$PATH
+        mkdir -p $ANDROID_HOME/cmdline-tools
+        cd $ANDROID_HOME/cmdline-tools
+        wget https://dl.google.com/android/repository/commandlinetools-linux-11076708_latest.zip -O cmdline-tools.zip
+        unzip cmdline-tools.zip -d tools
+        rm cmdline-tools.zip
+        export PATH=$PATH:$ANDROID_HOME/cmdline-tools/tools/bin
         yes | sdkmanager --sdk_root="$ANDROID_HOME" --licenses
-       sdkmanager --sdk_root="$ANDROID_HOME" "platform-tools" "platforms;android-34" "build-tools;34.0.0" "ndk;25.2.9519653"
-        echo "ANDROIDSDK=$ANDROID_HOME" >> $GITHUB_ENV
-        echo "ANDROIDNDK=$ANDROID_HOME/ndk/25.2.9519653" >> $GITHUB_ENV
-        echo "PATH=$HOME/android/cmdline-tools/latest/bin:$ANDROID_HOME/platform-tools:$PATH" >> $GITHUB_ENV
-      shell: bash
+        sdkmanager --sdk_root="$ANDROID_HOME" "platform-tools" "platforms;android-34" "build-tools;34.0.0" "ndk;25.2.9519653"
 
-    - name: Install Buildozer & deps
-      run: |
-        python3 -m venv .p4a-venv
-        source .p4a-venv/bin/activate
-        pip install --upgrade pip setuptools wheel
-        pip install buildozer==1.5.0 Cython==0.29.36
-        buildozer --version
-      shell: bash
-
-    - name: Ensure buildozer.spec exists
-      run: |
-        if [ ! -f buildozer.spec ]; then
-          source .p4a-venv/bin/activate
-          buildozer init
-        fi
-        sed -i 's/^android.api =.*/android.api = 34/' buildozer.spec || echo "android.api = 34" >> buildozer.spec
-        sed -i 's/^android.ndk =.*/android.ndk = 25.2.9519653/' buildozer.spec || echo "android.ndk = 25.2.9519653" >> buildozer.spec
-        sed -i 's/^android.minapi =.*/android.minapi = 24/' buildozer.spec || echo "android.minapi = 24" >> buildozer.spec
-        sed -i 's/^title =.*/title = ATAGULDONER/' buildozer.spec || echo "title = ATAGULDONER" >> buildozer.spec
-        sed -i 's/^package.name =.*/package.name = ataguldoner/' buildozer.spec || echo "package.name = ataguldoner" >> buildozer.spec
-        sed -i 's/^package.domain =.*/package.domain = org.atagul/' buildozer.spec || echo "package.domain = org.atagul" >> buildozer.spec
-        sed -i 's%^source.dir =.*%source.dir = ./ATAGULDONER%' buildozer.spec || echo "source.dir = ./ATAGULDONER" >> buildozer.spec
-        sed -i 's/^requirements =.*/requirements = python3,pygame/' buildozer.spec || echo "requirements = python3,pygame" >> buildozer.spec
-        sed -i 's/^android.accept_sdk_license =.*/android.accept_sdk_license = True/' buildozer.spec || echo "android.accept_sdk_license = True" >> buildozer.spec
-      shell: bash
-
-    - name: Build APK
+    - name: Build with Buildozer
       env:
-        ANDROIDSDK: ${{ env.ANDROIDSDK }}
-        ANDROIDNDK: ${{ env.ANDROIDNDK }}
-        JAVA_HOME: /usr/lib/jvm/java-17-openjdk-amd64
-        PATH: ${{ env.PATH }}:$HOME/android/cmdline-tools/latest/bin
+        ANDROID_HOME: ${{ github.workspace }}/.buildozer/android/platform/android-sdk
       run: |
-        source .p4a-venv/bin/activate
-        export ANDROIDSDK=$HOME/android/sdk
-        export ANDROIDNDK=$HOME/android/sdk/ndk/25.2.9519653
-        export PATH=$HOME/android/cmdline-tools/latest/bin:$ANDROIDSDK/platform-tools:$PATH
-        buildozer -v android debug || (tail -n 200 ./.buildozer/android/platform-*/*/buildozer.log || true ; exit 1)
-      shell: bash
+        buildozer android debug
 
     - name: Upload APK artifact
       uses: actions/upload-artifact@v4
       with:
-        name: ATAGULDONER-APK
+        name: atagul-doner-apk
         path: bin/*.apk
