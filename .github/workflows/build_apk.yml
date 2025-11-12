@@ -8,103 +8,131 @@ on:
 jobs:
   build-apk:
     runs-on: ubuntu-latest
-    timeout-minutes: 240
+    timeout-minutes: 180
 
     steps:
-    - name: Checkout repo
+    - name: Checkout repository
       uses: actions/checkout@v4
+
+    - name: Set up Python 3.11
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.11'
 
     - name: Install system packages
       run: |
-        sudo apt-get update
-        sudo apt-get install -y \
-          wget unzip zip tar git build-essential cmake pkg-config autoconf automake libtool \
-          python3-venv python3-pip openjdk-17-jdk \
-          libsdl2-dev libsdl2-image-dev libsdl2-mixer-dev libsdl2-ttf-dev \
-          libglu1-mesa-dev freeglut3-dev libfreetype6-dev
-      shell: bash
+        sudo apt-get update -y
+        sudo apt-get install -y --no-install-recommends \
+          wget unzip zip git tar build-essential cmake automake autoconf libtool \
+          pkg-config libffi-dev libssl-dev python3-dev python3-venv python3-pip \
+          openjdk-17-jdk-headless libsdl2-dev libsdl2-image-dev libsdl2-mixer-dev libsdl2-ttf-dev \
+          unzip
 
-    - name: Prepare Android commandline-tools (robust)
+    - name: Prepare Android commandline tools (robust)
+      id: sdkprep
       run: |
-        set -e
-        ANDROID_ROOT="$HOME/android-sdk"
-        mkdir -p "$ANDROID_ROOT"
-        cd "$HOME"
-        CMD_ZIP="commandlinetools-linux-11076708_latest.zip"
-        if [ ! -f "$CMD_ZIP" ]; then
-          wget -q "https://dl.google.com/android/repository/${CMD_ZIP}"
-        fi
-        mkdir -p "$ANDROID_ROOT/cmdline-tools"
-        unzip -q -o "$CMD_ZIP" -d "$ANDROID_ROOT/cmdline-tools/tmp"
-        # Normalize folder to cmdline-tools/latest
-        rm -rf "$ANDROID_ROOT/cmdline-tools/latest"
-        mv "$ANDROID_ROOT/cmdline-tools/tmp/cmdline-tools" "$ANDROID_ROOT/cmdline-tools/latest" 2>/dev/null || mv "$ANDROID_ROOT/cmdline-tools/tmp"/* "$ANDROID_ROOT/cmdline-tools/latest/"
-        rm -rf "$ANDROID_ROOT/cmdline-tools/tmp"
-        export PATH="$ANDROID_ROOT/cmdline-tools/latest/bin:$PATH"
-        echo "ANDROID_ROOT prepared at $ANDROID_ROOT"
-      shell: bash
-
-    - name: Install Android SDK packages and accept licenses
-      env:
-        ANDROID_HOME: ${{ github.workspace }}/android-sdk
-      run: |
-        set -e
-        ANDROID_HOME="$HOME/android-sdk"
+        set -euo pipefail
+        ANDROID_HOME="$RUNNER_TEMP/android-sdk"
         mkdir -p "$ANDROID_HOME"
-        export ANDROID_HOME
-        export PATH="$ANDROID_HOME/cmdline-tools/latest/bin:$PATH"
-        # ensure sdkmanager exists
-        if ! command -v sdkmanager >/dev/null 2>&1; then
-          echo "sdkmanager not found, checking path..."
-          ls -la "$ANDROID_HOME/cmdline-tools/latest/bin" || true
+        echo "ANDROID_HOME will be: $ANDROID_HOME"
+        # download stable commandlinetools (use a reasonably new, stable version)
+        CD_TZ="$RUNNER_TEMP/cmdline"
+        mkdir -p "$CD_TZ"
+        cd "$CD_TZ"
+        TOOLS_ZIP="commandlinetools-linux-9477386_latest.zip"
+        if [ ! -f "$TOOLS_ZIP" ]; then
+          wget -q "https://dl.google.com/android/repository/${TOOLS_ZIP}"
         fi
-        yes | sdkmanager --sdk_root="$ANDROID_HOME" --licenses || true
-        # Install platform-tools, platform 34 and build-tools 34.0.0 and recommended NDK 25.2
-        sdkmanager --sdk_root="$ANDROID_HOME" "platform-tools" "platforms;android-34" "build-tools;34.0.0" "ndk;25.2.9519653" "cmake;3.22.1" || true
-        echo "ANDROID_HOME=$ANDROID_HOME" >> $GITHUB_ENV
-        echo "ANDROID_NDK_HOME=$ANDROID_HOME/ndk/25.2.9519653" >> $GITHUB_ENV
-        echo "PATH=$ANDROID_HOME/cmdline-tools/latest/bin:$ANDROID_HOME/platform-tools:$PATH" >> $GITHUB_ENV
+        unzip -q "$TOOLS_ZIP" -d cmdline-tools
+        # Normalise extracted layout: ensure cmdline-tools/latest/bin/sdkmanager exists
+        if [ -d cmdline-tools/cmdline-tools ]; then
+          mkdir -p "$ANDROID_HOME/cmdline-tools"
+          mv cmdline-tools/cmdline-tools "$ANDROID_HOME/cmdline-tools/latest"
+        elif [ -d cmdline-tools/bin ]; then
+          mkdir -p "$ANDROID_HOME/cmdline-tools"
+          mv cmdline-tools "$ANDROID_HOME/cmdline-tools/latest"
+        else
+          mkdir -p "$ANDROID_HOME/cmdline-tools/latest"
+          mv cmdline-tools/* "$ANDROID_HOME/cmdline-tools/latest/" || true
+        fi
+        # expose variables for later steps
+        echo "ANDROID_HOME=$ANDROID_HOME" >> "$GITHUB_ENV"
+        echo "ANDROID_CMDLINE=$ANDROID_HOME/cmdline-tools/latest/bin" >> "$GITHUB_ENV"
+        echo "PATH=$ANDROID_HOME/platform-tools:$ANDROID_HOME/cmdline-tools/latest/bin:$PATH" >> "$GITHUB_ENV"
       shell: bash
 
-    - name: Create Python venv & install python-for-android
-      run: |
-        python3 -m venv .p4a-venv
-        source .p4a-venv/bin/activate
-        pip install --upgrade pip setuptools wheel
-        pip install "python-for-android==2024.01.21" Cython==3.2.0
-        python -m pip show pythonforandroid
-        # ensure p4a binary is available
-        echo "p4a at: $(which p4a || true)"
-      shell: bash
-
-    - name: Build APK with python-for-android (skip pygame C)
+    - name: Install Android SDK packages & accept licenses
       env:
         ANDROID_HOME: ${{ env.ANDROID_HOME }}
-        ANDROID_NDK_HOME: ${{ env.ANDROID_NDK_HOME }}
+      run: |
+        set -euo pipefail
+        export ANDROID_HOME="${ANDROID_HOME:-$RUNNER_TEMP/android-sdk}"
+        export PATH="$ANDROID_HOME/cmdline-tools/latest/bin:$PATH"
+        SDKMAN="$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager"
+        if [ ! -x "$SDKMAN" ]; then
+          # sometimes sdkmanager lives directly under bin/ but name/path varies — try fallback
+          SDKMAN=$(command -v sdkmanager || true)
+        fi
+        if [ -z "$SDKMAN" ]; then
+          echo "sdkmanager not available at expected path ($ANDROID_HOME/cmdline-tools/latest/bin). Listing:"
+          ls -R "$ANDROID_HOME" || true
+          exit 127
+        fi
+        echo "Using sdkmanager: $SDKMAN"
+        # Accept licenses non-interactively
+        yes | "$SDKMAN" --sdk_root="$ANDROID_HOME" --licenses || true
+        # Install platform-tools, chosen Android API (34), build-tools and NDK recommended by p4a
+        yes | "$SDKMAN" --sdk_root="$ANDROID_HOME" --install \
+          "platform-tools" "platforms;android-34" "build-tools;34.0.0" "ndk;25.2.9519653" || true
+        # expose envs
+        echo "ANDROIDSDK=$ANDROID_HOME" >> $GITHUB_ENV
+        echo "ANDROIDNDK=$ANDROID_HOME/ndk/25.2.9519653" >> $GITHUB_ENV
+        echo "PATH=$ANDROID_HOME/platform-tools:$ANDROID_HOME/cmdline-tools/latest/bin:$PATH" >> $GITHUB_ENV
+      shell: bash
+
+    - name: Create Python venv and install p4a & deps
+      run: |
+        set -euo pipefail
+        python3 -m venv .p4a-venv
+        source .p4a-venv/bin/activate
+        python -m pip install --upgrade pip setuptools wheel
+        # install python-for-android and cython; keep versions pinned to tested ones
+        pip install "python-for-android==2024.01.21" "Cython==3.2.0"
+        # p4a CLI path check
+        python -c "import pythonforandroid; print('p4a ok:', pythonforandroid.__version__)"
+      shell: bash
+
+    - name: Build APK with python-for-android (skip pygame C build)
+      env:
+        ANDROIDSDK: ${{ env.ANDROIDSDK }}
+        ANDROIDNDK: ${{ env.ANDROIDNDK }}
         PATH: ${{ env.PATH }}
       run: |
-        set -e
+        set -euo pipefail
         source .p4a-venv/bin/activate
-        # Adjust these variables to your project folder / main file
-        PROJECT_DIR="./ATAGULDONER"
-        MAIN_PY="main.py"
-        if [ ! -d "$PROJECT_DIR" ]; then
-          echo "ERROR: project folder $PROJECT_DIR not found"
+        # go to project root (repo checked out)
+        PROJECT_DIR="$GITHUB_WORKSPACE"
+        cd "$PROJECT_DIR"
+        # Ensure your game folder is ./ATAGULDONER and has main.py or the python entry
+        if [ ! -d "./ATAGULDONER" ]; then
+          echo "ERROR: ./ATAGULDONER directory not found in repo root"
+          ls -la
           exit 1
         fi
-        cd "$PROJECT_DIR"
-        # p4a args: private dir is project directory (use relative path)
-        # --skip-build-pygame-c avoids compiling pygame C extensions which cause longintrepr.h and similar errors
+        export ANDROIDSDK="${ANDROIDSDK:-$RUNNER_TEMP/android-sdk}"
+        export ANDROIDNDK="${ANDROIDNDK:-$ANDROIDSDK/ndk/25.2.9519653}"
+        export PATH="$ANDROIDSDK/cmdline-tools/latest/bin:$ANDROIDSDK/platform-tools:$PATH"
+        # p4a apk command (skips pygame C compile to avoid longintrepr.h errors)
         p4a apk \
-          --private "$PWD" \
+          --private "./ATAGULDONER" \
           --package=org.atagul.ataguldoner \
           --name "ATAGULDONER" \
           --version 1.0 \
           --bootstrap=sdl2 \
           --arch=arm64-v8a \
           --requirements=python3,pygame \
-          --sdk-dir "$ANDROID_HOME" \
-          --ndk-dir "$ANDROID_NDK_HOME" \
+          --sdk-dir "$ANDROIDSDK" \
+          --ndk-dir "$ANDROIDNDK" \
           --skip-build-pygame-c \
           --debug
       shell: bash
@@ -112,6 +140,8 @@ jobs:
     - name: Upload APK artifact
       uses: actions/upload-artifact@v4
       with:
-        name: ATAGULDONER-apk
+        name: ATAGULDONER-APK
         path: |
-          ATAGULDONER/bin/*.apk
+          dist/*.apk
+          bin/*.apk
+          ./*.apk
