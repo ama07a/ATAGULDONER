@@ -4,50 +4,54 @@ title = ATAGULDONER
 
 # (str) Package name
 package.name = ataguldoner
-
-# (str) Package domain (reverse domain-style)
 package.domain = org.atagul
 
-# (str) Source code folder (relative to buildozer.spec)
-source.dir = ./ATAGULDONER
+# (str) Source dir (where your main .py is). Repo root uses "."
+source.dir = .
 
-# (list) Include extensions
-source.include_exts = py,png,jpg,ogg,wav,mp3,json,txt
+# (str) Main python file (rename if main file farklı)
+source.include_exts = py, png, jpg, kv, atlas, ogg, wav
 
-# (str) Application versioning
+# (str) Presume your entrypoint is 'möm.py' or 'main.py'. Set here:
+# If your main file is 'möm.py', set: (escape non-ascii? best to rename to main.py)
+# You can rename the file to main.py to avoid encoding problems.
+# Example:
+# (UNIX filenames): main.py
+# If your entry file is named 'möm.py' you are safer renaming it to main.py before build.
+# For safety, set the entrypoint:
+# (If you do not set, buildozer will try main.py)
+# uncomment and set if necessary:
+# entrypoint = möm.py
+
+# (str) Application versioning (must be present)
 version = 1.0
 
-# (str) Orientation
-orientation = landscape
-
-# (bool) Fullscreen
-fullscreen = 1
-
-# (list) Requirements
-# Avoid heavy C modules here; pygame is included but note CI uses --skip-build-pygame-c
+# (list) Application requirements
 requirements = python3, pygame
 
-# (str) Icon file (set if you have one)
-icon.filename = %(source.dir)s/assets/icon.png
+# (str) Application icon
+# icon.filename = %(source.dir)s/icon.png
 
-# (list) Permissions
-android.permissions = INTERNET,WRITE_EXTERNAL_STORAGE
-
-# (int) Minimum Android API
-android.minapi = 24
-
-# (int) Target API
+# (bool) Android-specific settings
 android.api = 34
-
-# (str) NDK recommendation
+android.minapi = 24
 android.ndk = 25.2.9519653
-
-# (list) architectures to build for
-android.archs = arm64-v8a
-
-# accept sdk license
 android.accept_sdk_license = True
 
-[buildozer]
+# (str) Supported architectures
+android.archs = arm64-v8a
+
+# (str) Android permissions
+android.permissions = INTERNET
+
+# (bool) Copy libs into libs folder of the android project
+# (useful for local native libs)
+# copy-libs = True
+
+# (str) Presplash, orientation, etc
+orientation = landscape
+fullscreen = 0
 log_level = 2
-warn_on_root = 1
+
+# (int) Android bootstrap: use 'sdl2' for pygame projects
+bootstrap = sdl2
