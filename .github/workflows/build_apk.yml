@@ -29,7 +29,7 @@ jobs:
           libffi-dev libssl-dev
       shell: bash
 
-    - name: Prepare Android commandline tools (robust placement)
+    - name: Prepare Android commandline tools
       id: sdkprep
       run: |
         set -euo pipefail
@@ -37,12 +37,10 @@ jobs:
         mkdir -p "$CD"
         cd "$CD"
         TOOLS_ZIP="commandlinetools-linux-9477386_latest.zip"
-        echo "Downloading commandlinetools..."
         if [ ! -f "$TOOLS_ZIP" ]; then
           wget -q "https://dl.google.com/android/repository/${TOOLS_ZIP}" -O "$TOOLS_ZIP"
         fi
         unzip -q "$TOOLS_ZIP" -d cmdline-tools
-        # Normalize layout so we always end up with: $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager
         ANDROID_HOME="$RUNNER_TEMP/android-sdk"
         mkdir -p "$ANDROID_HOME/cmdline-tools"
         if [ -d cmdline-tools/cmdline-tools ]; then
@@ -58,7 +56,7 @@ jobs:
         echo "PATH=$ANDROID_HOME/platform-tools:$ANDROID_HOME/cmdline-tools/latest/bin:$PATH" >> "$GITHUB_ENV"
       shell: bash
 
-    - name: Install Android SDK packages & accept licenses (robust)
+    - name: Install Android SDK packages & accept licenses
       env:
         ANDROID_HOME: ${{ env.ANDROID_HOME }}
       run: |
@@ -71,39 +69,20 @@ jobs:
         if [ ! -x "$SDKMAN" ]; then
           SDKMAN=$(command -v sdkmanager || true)
         fi
-        if [ -z "$SDKMAN" ]; then
-          echo "sdkmanager not found. Listing $ANDROID_HOME for debug:"
-          ls -la "$ANDROID_HOME" || true
-          ls -R "$ANDROID_HOME" || true
-          exit 127
-        fi
-        echo "Using sdkmanager: $SDKMAN"
-
-        # Accept licenses quietly (avoid Broken pipe by redirecting yes output)
         printf '%s\n' y | "$SDKMAN" --sdk_root="$ANDROID_HOME" --licenses > /dev/null 2>&1 || true
-
-        # retry helper
         retry() {
           local tries=${1:-4}; shift
           local cmd=( "$@" )
           local i=1
           while true; do
             echo "Attempt $i: ${cmd[*]}"
-            if "${cmd[@]}"; then
-              return 0
-            fi
+            if "${cmd[@]}"; then return 0; fi
             i=$((i+1))
-            if [ $i -gt $tries ]; then
-              echo "Failed after $tries attempts: ${cmd[*]}"
-              return 1
-            fi
+            if [ $i -gt $tries ]; then echo "Failed after $tries attempts: ${cmd[*]}"; return 1; fi
             sleep 5
           done
         }
-
-        # install required SDK components (android-34 chosen; adjust if you need 33)
         retry 4 "$SDKMAN" --sdk_root="$ANDROID_HOME" --install "platform-tools" "platforms;android-34" "build-tools;34.0.0" "ndk;25.2.9519653"
-
         echo "ANDROIDSDK=$ANDROID_HOME" >> "$GITHUB_ENV"
         echo "ANDROIDNDK=$ANDROID_HOME/ndk/25.2.9519653" >> "$GITHUB_ENV"
         echo "PATH=$ANDROID_HOME/platform-tools:$ANDROID_HOME/cmdline-tools/latest/bin:$PATH" >> "$GITHUB_ENV"
@@ -115,35 +94,26 @@ jobs:
         python3 -m venv .p4a-venv
         source .p4a-venv/bin/activate
         python -m pip install --upgrade pip setuptools wheel
-        # pinned working versions
         pip install "python-for-android==2024.01.21" "Cython==3.2.0"
-        # quick check
-        python -c "import pythonforandroid; print('p4a', getattr(pythonforandroid,'__version__', 'unknown'))"
       shell: bash
 
     - name: Ensure main.py exists (copy möm.py -> main.py if necessary)
       run: |
         set -euo pipefail
-        # If project code is in a subfolder, adjust SOURCE_DIR variable accordingly.
-        SOURCE_DIR="."   # repo root
-        cd "$SOURCE_DIR"
-        # prefer main.py; if not present, try möm.py (or mom.py) and copy to main.py
+        cd "."
         if [ -f "main.py" ]; then
           echo "main.py exists; ok."
         elif [ -f "möm.py" ]; then
-          echo "Found möm.py -> copying to main.py"
           cp "möm.py" main.py
         elif [ -f "mom.py" ]; then
-          echo "Found mom.py -> copying to main.py"
           cp "mom.py" main.py
         else
           echo "No main.py or möm.py found — listing repo root:"
           ls -la
-          # still continue; p4a will error later telling missing entrypoint
         fi
       shell: bash
 
-    - name: Build APK with python-for-android (p4a)
+    - name: Build APK with python-for-android
       env:
         ANDROIDSDK: ${{ env.ANDROIDSDK }}
         ANDROIDNDK: ${{ env.ANDROIDNDK }}
@@ -151,10 +121,7 @@ jobs:
       run: |
         set -euo pipefail
         source .p4a-venv/bin/activate
-        PROJECT_DIR="${GITHUB_WORKSPACE:-$(pwd)}"
-        cd "$PROJECT_DIR"
-        # Use current folder as private app (main.py must be present)
-        echo "Building with p4a; SDK: $ANDROIDSDK ; NDK: $ANDROIDNDK"
+        cd "${GITHUB_WORKSPACE:-$(pwd)}"
         p4a apk \
           --private . \
           --package=org.atagul.ataguldoner \
@@ -165,8 +132,9 @@ jobs:
           --requirements=python3,pygame \
           --sdk-dir "$ANDROIDSDK" \
           --ndk-dir "$ANDROIDNDK" \
+          --android-api 34 \
           --skip-build-pygame-c \
-          --debug || (echo "p4a failed; printing last 300 lines of build output in .local/share/python-for-android"; tail -n 300 ~/.local/share/python-for-android/build.log 2>/dev/null || true ; exit 1)
+          --debug || (echo "p4a failed; printing last 300 lines of build output"; tail -n 300 ~/.local/share/python-for-android/build.log 2>/dev/null || true ; exit 1)
       shell: bash
 
     - name: Upload APK artifact
