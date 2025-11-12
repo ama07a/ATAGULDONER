@@ -35,7 +35,6 @@ jobs:
         ANDROID_HOME="$RUNNER_TEMP/android-sdk"
         mkdir -p "$ANDROID_HOME"
         echo "ANDROID_HOME will be: $ANDROID_HOME"
-        # download stable commandlinetools (use a reasonably new, stable version)
         CD_TZ="$RUNNER_TEMP/cmdline"
         mkdir -p "$CD_TZ"
         cd "$CD_TZ"
@@ -44,7 +43,6 @@ jobs:
           wget -q "https://dl.google.com/android/repository/${TOOLS_ZIP}"
         fi
         unzip -q "$TOOLS_ZIP" -d cmdline-tools
-        # Normalise extracted layout: ensure cmdline-tools/latest/bin/sdkmanager exists
         if [ -d cmdline-tools/cmdline-tools ]; then
           mkdir -p "$ANDROID_HOME/cmdline-tools"
           mv cmdline-tools/cmdline-tools "$ANDROID_HOME/cmdline-tools/latest"
@@ -55,7 +53,6 @@ jobs:
           mkdir -p "$ANDROID_HOME/cmdline-tools/latest"
           mv cmdline-tools/* "$ANDROID_HOME/cmdline-tools/latest/" || true
         fi
-        # expose variables for later steps
         echo "ANDROID_HOME=$ANDROID_HOME" >> "$GITHUB_ENV"
         echo "ANDROID_CMDLINE=$ANDROID_HOME/cmdline-tools/latest/bin" >> "$GITHUB_ENV"
         echo "PATH=$ANDROID_HOME/platform-tools:$ANDROID_HOME/cmdline-tools/latest/bin:$PATH" >> "$GITHUB_ENV"
@@ -70,7 +67,6 @@ jobs:
         export PATH="$ANDROID_HOME/cmdline-tools/latest/bin:$PATH"
         SDKMAN="$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager"
         if [ ! -x "$SDKMAN" ]; then
-          # sometimes sdkmanager lives directly under bin/ but name/path varies — try fallback
           SDKMAN=$(command -v sdkmanager || true)
         fi
         if [ -z "$SDKMAN" ]; then
@@ -78,13 +74,9 @@ jobs:
           ls -R "$ANDROID_HOME" || true
           exit 127
         fi
-        echo "Using sdkmanager: $SDKMAN"
-        # Accept licenses non-interactively
         yes | "$SDKMAN" --sdk_root="$ANDROID_HOME" --licenses || true
-        # Install platform-tools, chosen Android API (34), build-tools and NDK recommended by p4a
         yes | "$SDKMAN" --sdk_root="$ANDROID_HOME" --install \
           "platform-tools" "platforms;android-34" "build-tools;34.0.0" "ndk;25.2.9519653" || true
-        # expose envs
         echo "ANDROIDSDK=$ANDROID_HOME" >> $GITHUB_ENV
         echo "ANDROIDNDK=$ANDROID_HOME/ndk/25.2.9519653" >> $GITHUB_ENV
         echo "PATH=$ANDROID_HOME/platform-tools:$ANDROID_HOME/cmdline-tools/latest/bin:$PATH" >> $GITHUB_ENV
@@ -96,13 +88,11 @@ jobs:
         python3 -m venv .p4a-venv
         source .p4a-venv/bin/activate
         python -m pip install --upgrade pip setuptools wheel
-        # install python-for-android and cython; keep versions pinned to tested ones
         pip install "python-for-android==2024.01.21" "Cython==3.2.0"
-        # p4a CLI path check
         python -c "import pythonforandroid; print('p4a ok:', pythonforandroid.__version__)"
       shell: bash
 
-    - name: Build APK with python-for-android (skip pygame C build)
+    - name: Build APK with python-for-android (docs folder)
       env:
         ANDROIDSDK: ${{ env.ANDROIDSDK }}
         ANDROIDNDK: ${{ env.ANDROIDNDK }}
@@ -110,21 +100,14 @@ jobs:
       run: |
         set -euo pipefail
         source .p4a-venv/bin/activate
-        # go to project root (repo checked out)
-        PROJECT_DIR="$GITHUB_WORKSPACE"
-        cd "$PROJECT_DIR"
-        # Ensure your game folder is ./ATAGULDONER and has main.py or the python entry
-        if [ ! -d "./ATAGULDONER" ]; then
-          echo "ERROR: ./ATAGULDONER directory not found in repo root"
+        cd docs
+        if [ ! -f "möm.py" ]; then
+          echo "ERROR: möm.py not found in docs"
           ls -la
           exit 1
         fi
-        export ANDROIDSDK="${ANDROIDSDK:-$RUNNER_TEMP/android-sdk}"
-        export ANDROIDNDK="${ANDROIDNDK:-$ANDROIDSDK/ndk/25.2.9519653}"
-        export PATH="$ANDROIDSDK/cmdline-tools/latest/bin:$ANDROIDSDK/platform-tools:$PATH"
-        # p4a apk command (skips pygame C compile to avoid longintrepr.h errors)
         p4a apk \
-          --private "./ATAGULDONER" \
+          --private "." \
           --package=org.atagul.ataguldoner \
           --name "ATAGULDONER" \
           --version 1.0 \
@@ -133,7 +116,6 @@ jobs:
           --requirements=python3,pygame \
           --sdk-dir "$ANDROIDSDK" \
           --ndk-dir "$ANDROIDNDK" \
-          --skip-build-pygame-c \
           --debug
       shell: bash
 
@@ -142,6 +124,5 @@ jobs:
       with:
         name: ATAGULDONER-APK
         path: |
-          dist/*.apk
-          bin/*.apk
-          ./*.apk
+          docs/dist/*.apk
+          docs/bin/*.apk
