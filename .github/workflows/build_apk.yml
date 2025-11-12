@@ -69,26 +69,43 @@ jobs:
         if [ ! -x "$SDKMAN" ]; then
           SDKMAN=$(command -v sdkmanager || true)
         fi
+        if [ -z "$SDKMAN" ]; then
+          echo "sdkmanager not found"
+          exit 127
+        fi
+
         printf '%s\n' y | "$SDKMAN" --sdk_root="$ANDROID_HOME" --licenses > /dev/null 2>&1 || true
+
         retry() {
           local tries=${1:-4}; shift
           local cmd=( "$@" )
           local i=1
           while true; do
             echo "Attempt $i: ${cmd[*]}"
-            if "${cmd[@]}"; then return 0; fi
+            if "${cmd[@]}"; then
+              return 0
+            fi
             i=$((i+1))
-            if [ $i -gt $tries ]; then echo "Failed after $tries attempts: ${cmd[*]}"; return 1; fi
+            if [ $i -gt $tries ]; then
+              echo "Failed after $tries attempts: ${cmd[*]}"
+              return 1
+            fi
             sleep 5
           done
         }
-        retry 4 "$SDKMAN" --sdk_root="$ANDROID_HOME" --install "platform-tools" "platforms;android-34" "build-tools;34.0.0" "ndk;25.2.9519653"
+
+        retry 4 "$SDKMAN" --sdk_root="$ANDROID_HOME" --install \
+          "platform-tools" \
+          "platforms;android-33" \
+          "build-tools;33.0.0" \
+          "ndk;25.2.9519653"
+
         echo "ANDROIDSDK=$ANDROID_HOME" >> "$GITHUB_ENV"
         echo "ANDROIDNDK=$ANDROID_HOME/ndk/25.2.9519653" >> "$GITHUB_ENV"
         echo "PATH=$ANDROID_HOME/platform-tools:$ANDROID_HOME/cmdline-tools/latest/bin:$PATH" >> "$GITHUB_ENV"
       shell: bash
 
-    - name: Create Python venv & install python-for-android deps
+    - name: Create Python venv & install python-for-android
       run: |
         set -euo pipefail
         python3 -m venv .p4a-venv
@@ -97,18 +114,20 @@ jobs:
         pip install "python-for-android==2024.01.21" "Cython==3.2.0"
       shell: bash
 
-    - name: Ensure main.py exists (copy möm.py -> main.py if necessary)
+    - name: Ensure main.py exists (copy möm.py if needed)
       run: |
         set -euo pipefail
-        cd "."
+        cd "${GITHUB_WORKSPACE:-$(pwd)}"
         if [ -f "main.py" ]; then
-          echo "main.py exists; ok."
+          echo "main.py exists"
         elif [ -f "möm.py" ]; then
+          echo "Copying möm.py -> main.py"
           cp "möm.py" main.py
         elif [ -f "mom.py" ]; then
+          echo "Copying mom.py -> main.py"
           cp "mom.py" main.py
         else
-          echo "No main.py or möm.py found — listing repo root:"
+          echo "No main.py or möm.py found in repo root"
           ls -la
         fi
       shell: bash
@@ -122,6 +141,7 @@ jobs:
         set -euo pipefail
         source .p4a-venv/bin/activate
         cd "${GITHUB_WORKSPACE:-$(pwd)}"
+        echo "Building APK..."
         p4a apk \
           --private . \
           --package=org.atagul.ataguldoner \
@@ -132,9 +152,8 @@ jobs:
           --requirements=python3,pygame \
           --sdk-dir "$ANDROIDSDK" \
           --ndk-dir "$ANDROIDNDK" \
-          --android-api 34 \
           --skip-build-pygame-c \
-          --debug || (echo "p4a failed; printing last 300 lines of build output"; tail -n 300 ~/.local/share/python-for-android/build.log 2>/dev/null || true ; exit 1)
+          --debug || (echo "p4a failed; printing last 300 lines of build log"; tail -n 300 ~/.local/share/python-for-android/build.log 2>/dev/null || true; exit 1)
       shell: bash
 
     - name: Upload APK artifact
