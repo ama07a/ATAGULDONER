@@ -8,7 +8,7 @@ on:
 jobs:
   build-apk:
     runs-on: ubuntu-latest
-    timeout-minutes: 180
+    timeout-minutes: 240
 
     steps:
     - name: Checkout repository
@@ -19,84 +19,72 @@ jobs:
       with:
         python-version: '3.11'
 
-    - name: Install system packages
+    - name: Install system packages (essential)
       run: |
         sudo apt-get update -y
         sudo apt-get install -y --no-install-recommends \
-          wget unzip zip tar git build-essential cmake automake autoconf libtool pkg-config \
-          openjdk-17-jdk-headless python3-venv python3-pip make ccache \
-          libsdl2-dev libsdl2-image-dev libsdl2-mixer-dev libsdl2-ttf-dev
+          wget unzip zip tar git build-essential cmake autoconf automake libtool pkg-config \
+          python3-venv python3-pip python3-dev openjdk-17-jdk-headless \
+          libsdl2-dev libsdl2-image-dev libsdl2-mixer-dev libsdl2-ttf-dev \
+          libffi-dev libssl-dev
       shell: bash
 
-    - name: Prepare Android commandline tools (robust)
+    - name: Prepare Android commandline tools (robust placement)
       id: sdkprep
       run: |
         set -euo pipefail
-        ANDROID_ROOT="$RUNNER_TEMP/android-sdk"
-        mkdir -p "$ANDROID_ROOT"
-        echo "ANDROID_ROOT=$ANDROID_ROOT"
-        CD="$RUNNER_TEMP/cmdline"
+        CD="$RUNNER_TEMP/android-cmdline"
         mkdir -p "$CD"
         cd "$CD"
-
-        # recommended stable cmdline tools zip (change version if desired)
         TOOLS_ZIP="commandlinetools-linux-9477386_latest.zip"
+        echo "Downloading commandlinetools..."
         if [ ! -f "$TOOLS_ZIP" ]; then
-          wget -q "https://dl.google.com/android/repository/$TOOLS_ZIP"
+          wget -q "https://dl.google.com/android/repository/${TOOLS_ZIP}" -O "$TOOLS_ZIP"
         fi
-
-        unzip -q "$TOOLS_ZIP" -d tmp_cmdline
-        # Normalize structure so we have cmdline-tools/latest/...
-        mkdir -p "$ANDROID_ROOT/cmdline-tools"
-        if [ -d tmp_cmdline/cmdline-tools ]; then
-          mv tmp_cmdline/cmdline-tools "$ANDROID_ROOT/cmdline-tools/latest"
+        unzip -q "$TOOLS_ZIP" -d cmdline-tools
+        # Normalize layout so we always end up with: $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager
+        ANDROID_HOME="$RUNNER_TEMP/android-sdk"
+        mkdir -p "$ANDROID_HOME/cmdline-tools"
+        if [ -d cmdline-tools/cmdline-tools ]; then
+          mv cmdline-tools/cmdline-tools "$ANDROID_HOME/cmdline-tools/latest"
+        elif [ -d cmdline-tools/bin ]; then
+          mv cmdline-tools "$ANDROID_HOME/cmdline-tools/latest"
         else
-          mkdir -p "$ANDROID_ROOT/cmdline-tools/latest"
-          mv tmp_cmdline/* "$ANDROID_ROOT/cmdline-tools/latest/" || true
+          mkdir -p "$ANDROID_HOME/cmdline-tools/latest"
+          mv cmdline-tools/* "$ANDROID_HOME/cmdline-tools/latest/" || true
         fi
-        rm -rf tmp_cmdline "$TOOLS_ZIP"
-
-        echo "ANDROID_ROOT=$ANDROID_ROOT" >> "$GITHUB_ENV"
-        echo "ANDROID_CMDLINE=$ANDROID_ROOT/cmdline-tools/latest/bin" >> "$GITHUB_ENV"
-        echo "PATH=$ANDROID_ROOT/platform-tools:$ANDROID_ROOT/cmdline-tools/latest/bin:$PATH" >> "$GITHUB_ENV"
+        echo "ANDROID_HOME=$ANDROID_HOME" >> "$GITHUB_ENV"
+        echo "ANDROID_CMDLINE=$ANDROID_HOME/cmdline-tools/latest/bin" >> "$GITHUB_ENV"
+        echo "PATH=$ANDROID_HOME/platform-tools:$ANDROID_HOME/cmdline-tools/latest/bin:$PATH" >> "$GITHUB_ENV"
       shell: bash
 
-      - name: Install Android SDK packages & accept licenses (robust)
+    - name: Install Android SDK packages & accept licenses (robust)
       env:
-        ANDROID_ROOT: ${{ env.ANDROID_ROOT }}
+        ANDROID_HOME: ${{ env.ANDROID_HOME }}
       run: |
         set -euo pipefail
-
-        # choose ANDROID_HOME/ANDROID_ROOT used earlier in workflow
-        ANDROID_HOME="${ANDROID_ROOT:-$RUNNER_TEMP/android-sdk}"
-        mkdir -p "$ANDROID_HOME"
+        ANDROID_HOME="${ANDROID_HOME:-$RUNNER_TEMP/android-sdk}"
         export ANDROID_HOME
-
-        # ensure sdkmanager path
+        PATH="$ANDROID_HOME/platform-tools:$ANDROID_HOME/cmdline-tools/latest/bin:$PATH"
+        export PATH
         SDKMAN="$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager"
         if [ ! -x "$SDKMAN" ]; then
-          # try any sdkmanager available on PATH
           SDKMAN=$(command -v sdkmanager || true)
         fi
-
         if [ -z "$SDKMAN" ]; then
-          echo "ERROR: sdkmanager not found. Listing $ANDROID_HOME for debugging:"
+          echo "sdkmanager not found. Listing $ANDROID_HOME for debug:"
           ls -la "$ANDROID_HOME" || true
-          echo "Contents recursive:"
           ls -R "$ANDROID_HOME" || true
           exit 127
         fi
-
         echo "Using sdkmanager: $SDKMAN"
 
-        # Accept licenses robustly.
-        # We redirect yes's output to /dev/null to avoid Broken pipe noise,
-        # and ignore non-zero exit to avoid failing when pipe closes early.
+        # Accept licenses quietly (avoid Broken pipe by redirecting yes output)
         printf '%s\n' y | "$SDKMAN" --sdk_root="$ANDROID_HOME" --licenses > /dev/null 2>&1 || true
 
-        # helper to retry sdkmanager install (network flakiness)
-        retry_cmd() {
-          local tries=${1:-3}; shift
+        # retry helper
+        retry() {
+          local tries=${1:-4}; shift
           local cmd=( "$@" )
           local i=1
           while true; do
@@ -106,67 +94,79 @@ jobs:
             fi
             i=$((i+1))
             if [ $i -gt $tries ]; then
-              echo "Command failed after $tries attempts: ${cmd[*]}"
+              echo "Failed after $tries attempts: ${cmd[*]}"
               return 1
             fi
-            echo "Sleeping before retry..."
             sleep 5
           done
         }
 
-        # install what we need (platform-tools, platforms, build-tools, ndk)
-        retry_cmd 4 "$SDKMAN" --sdk_root="$ANDROID_HOME" --install "platform-tools" "platforms;android-34" "build-tools;34.0.0" "ndk;25.2.9519653"
+        # install required SDK components (android-34 chosen; adjust if you need 33)
+        retry 4 "$SDKMAN" --sdk_root="$ANDROID_HOME" --install "platform-tools" "platforms;android-34" "build-tools;34.0.0" "ndk;25.2.9519653"
 
-        # export envs for later steps
         echo "ANDROIDSDK=$ANDROID_HOME" >> "$GITHUB_ENV"
         echo "ANDROIDNDK=$ANDROID_HOME/ndk/25.2.9519653" >> "$GITHUB_ENV"
         echo "PATH=$ANDROID_HOME/platform-tools:$ANDROID_HOME/cmdline-tools/latest/bin:$PATH" >> "$GITHUB_ENV"
       shell: bash
 
-
-    - name: Ensure buildozer.spec (create/adjust)
+    - name: Create Python venv & install python-for-android deps
       run: |
         set -euo pipefail
-        # if buildozer.spec doesn't exist, initialize and replace values
+        python3 -m venv .p4a-venv
         source .p4a-venv/bin/activate
-        if [ ! -f buildozer.spec ]; then
-          buildozer init
-        fi
-        # safe defaults (overwrite or append)
-        sed -i 's/^title =.*/title = ATAGULDONER/' buildozer.spec || echo "title = ATAGULDONER" >> buildozer.spec
-        sed -i 's/^package.name =.*/package.name = ataguldoner/' buildozer.spec || echo "package.name = ataguldoner" >> buildozer.spec
-        sed -i 's/^package.domain =.*/package.domain = org.atagul/' buildozer.spec || echo "package.domain = org.atagul" >> buildozer.spec
-        sed -i 's%^source.dir =.*%source.dir = .%' buildozer.spec || echo "source.dir = ." >> buildozer.spec
-        sed -i 's/^requirements =.*/requirements = python3,pygame/' buildozer.spec || echo "requirements = python3,pygame" >> buildozer.spec
-        sed -i 's/^android.api =.*/android.api = 34/' buildozer.spec || echo "android.api = 34" >> buildozer.spec
-        sed -i 's/^android.ndk =.*/android.ndk = 25.2.9519653/' buildozer.spec || echo "android.ndk = 25.2.9519653" >> buildozer.spec
-        sed -i 's/^android.minapi =.*/android.minapi = 24/' buildozer.spec || echo "android.minapi = 24" >> buildozer.spec
-        sed -i 's/^android.accept_sdk_license =.*/android.accept_sdk_license = True/' buildozer.spec || echo "android.accept_sdk_license = True" >> buildozer.spec
-        # ensure version present
-        if ! grep -q '^version =' buildozer.spec; then
-          echo "version = 1.0" >> buildozer.spec
+        python -m pip install --upgrade pip setuptools wheel
+        # pinned working versions
+        pip install "python-for-android==2024.01.21" "Cython==3.2.0"
+        # quick check
+        python -c "import pythonforandroid; print('p4a', getattr(pythonforandroid,'__version__', 'unknown'))"
+      shell: bash
+
+    - name: Ensure main.py exists (copy möm.py -> main.py if necessary)
+      run: |
+        set -euo pipefail
+        # If project code is in a subfolder, adjust SOURCE_DIR variable accordingly.
+        SOURCE_DIR="."   # repo root
+        cd "$SOURCE_DIR"
+        # prefer main.py; if not present, try möm.py (or mom.py) and copy to main.py
+        if [ -f "main.py" ]; then
+          echo "main.py exists; ok."
+        elif [ -f "möm.py" ]; then
+          echo "Found möm.py -> copying to main.py"
+          cp "möm.py" main.py
+        elif [ -f "mom.py" ]; then
+          echo "Found mom.py -> copying to main.py"
+          cp "mom.py" main.py
+        else
+          echo "No main.py or möm.py found — listing repo root:"
+          ls -la
+          # still continue; p4a will error later telling missing entrypoint
         fi
       shell: bash
 
-    - name: Run Buildozer build (debug)
+    - name: Build APK with python-for-android (p4a)
       env:
         ANDROIDSDK: ${{ env.ANDROIDSDK }}
         ANDROIDNDK: ${{ env.ANDROIDNDK }}
-        JAVA_HOME: /usr/lib/jvm/java-17-openjdk-amd64
         PATH: ${{ env.PATH }}
       run: |
         set -euo pipefail
         source .p4a-venv/bin/activate
-        export ANDROIDSDK="${ANDROIDSDK:-$RUNNER_TEMP/android-sdk}"
-        export ANDROIDNDK="${ANDROIDNDK:-$ANDROIDSDK/ndk/25.2.9519653}"
-        export PATH="$ANDROIDSDK/cmdline-tools/latest/bin:$ANDROIDSDK/platform-tools:$PATH"
-
-        # Ensure project files are in repo root
-        echo "Listing repo root:"
-        ls -la
-
-        # Build (this can take long)
-        buildozer -v android debug || (echo "Buildozer failed — printing last 400 lines of output"; tail -n 400 ./.buildozer/android/platform/*/buildozer.log || true; exit 1)
+        PROJECT_DIR="${GITHUB_WORKSPACE:-$(pwd)}"
+        cd "$PROJECT_DIR"
+        # Use current folder as private app (main.py must be present)
+        echo "Building with p4a; SDK: $ANDROIDSDK ; NDK: $ANDROIDNDK"
+        p4a apk \
+          --private . \
+          --package=org.atagul.ataguldoner \
+          --name "ATAGULDONER" \
+          --version 1.0 \
+          --bootstrap=sdl2 \
+          --arch=arm64-v8a \
+          --requirements=python3,pygame \
+          --sdk-dir "$ANDROIDSDK" \
+          --ndk-dir "$ANDROIDNDK" \
+          --skip-build-pygame-c \
+          --debug || (echo "p4a failed; printing last 300 lines of build output in .local/share/python-for-android"; tail -n 300 ~/.local/share/python-for-android/build.log 2>/dev/null || true ; exit 1)
       shell: bash
 
     - name: Upload APK artifact
@@ -174,6 +174,6 @@ jobs:
       with:
         name: ATAGULDONER-APK
         path: |
+          dist/*.apk
           bin/*.apk
-          ~/.buildozer/android/platform/build-arm64-v8a/build/dists/*.apk
-          ./.buildozer/android/platform/build/dists/*.apk
+          ./*.apk
