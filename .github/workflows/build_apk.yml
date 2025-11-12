@@ -138,18 +138,19 @@ jobs:
         set -euo pipefail
         source .p4a-venv/bin/activate
         echo "Building APK..."
-        p4a apk \
-          --private . \
-          --package=org.atagul.ataguldoner \
-          --name "ATAGULDONER" \
-          --version 1.0 \
-          --bootstrap=sdl2 \
-          --arch=arm64-v8a \
-          --requirements=python3,pygame \
-          --sdk-dir "$ANDROIDSDK" \
-          --ndk-dir "$ANDROIDNDK" \
-          --skip-build-pygame-c \
-          --debug || (echo "p4a failed, printing last 300 lines of build log"; tail -n 300 ~/.local/share/python-for-android/build.log || true ; exit 1)
+       p4a apk \
+  --private . \
+  --package=org.atagul.ataguldoner \
+  --name "ATAGULDONER" \
+  --version 1.0 \
+  --bootstrap=sdl2 \
+  --arch=arm64-v8a \
+  --requirements=python3,pygame \
+  --sdk-dir "$ANDROIDSDK" \
+  --ndk-dir "$ANDROIDNDK" \
+  --android-api=34 \
+  --skip-build-pygame-c \
+  --debug || (echo "p4a failed, printing last 300 lines of build log"; tail -n 300 ~/.local/share/python-for-android/build.log || true ; exit 1)
       shell: bash
 
     - name: Upload APK artifact
