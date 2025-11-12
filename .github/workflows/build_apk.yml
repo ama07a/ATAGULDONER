@@ -32,7 +32,7 @@ jobs:
         mkdir -p $ANDROID_HOME/cmdline-tools
         cd $ANDROID_HOME/cmdline-tools
 
-        echo "📦 Downloading Android command line tools..."
+        # Download command line tools
         wget https://dl.google.com/android/repository/commandlinetools-linux-11076708_latest.zip -O cmdtools.zip
         unzip cmdtools.zip -d cmdline-tools
         rm cmdtools.zip
@@ -41,25 +41,15 @@ jobs:
         mkdir -p latest
         mv cmdline-tools/* latest/
 
-        echo "✅ Accepting licenses..."
+        # Accept licenses
         yes | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --licenses || true
 
-        echo "📦 Installing SDK components..."
+        # Install SDK components
         yes | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager \
           "platform-tools" \
           "platforms;android-34" \
           "build-tools;34.0.0" \
           "ndk;25.2.9519653"
-
-    - name: Verify SDK installation
-      run: |
-        export ANDROID_HOME=$HOME/android-sdk
-        export PATH=$PATH:$ANDROID_HOME/cmdline-tools/latest/bin:$ANDROID_HOME/platform-tools
-        echo "🔍 SDK Tools in:"
-        ls -R $ANDROID_HOME/cmdline-tools/
-        which sdkmanager || echo "⚠️ sdkmanager not found!"
-        which adb || echo "⚠️ adb not found!"
-        which aidl || echo "⚠️ aidl not found!"
 
     - name: Build APK with Buildozer
       run: |
