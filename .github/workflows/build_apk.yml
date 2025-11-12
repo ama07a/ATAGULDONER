@@ -19,51 +19,114 @@ jobs:
       with:
         python-version: '3.11'
 
-    - name: Install system packages
+    - name: Install system packages (essential)
       run: |
         sudo apt-get update -y
-        sudo apt-get install -y wget unzip zip tar git build-essential cmake \
-          autoconf automake libtool pkg-config python3-venv python3-pip python3-dev \
-          openjdk-17-jdk-headless libsdl2-dev libsdl2-image-dev libsdl2-mixer-dev libsdl2-ttf-dev \
+        sudo apt-get install -y --no-install-recommends \
+          wget unzip zip tar git build-essential cmake autoconf automake libtool pkg-config \
+          python3-venv python3-pip python3-dev openjdk-17-jdk-headless \
+          libsdl2-dev libsdl2-image-dev libsdl2-mixer-dev libsdl2-ttf-dev \
           libffi-dev libssl-dev
       shell: bash
 
-    - name: Install Android SDK & NDK
+    - name: Prepare Android commandline tools
+      id: sdkprep
       run: |
         set -euo pipefail
-        export ANDROID_HOME=$RUNNER_TEMP/android-sdk
-        export PATH=$ANDROID_HOME/cmdline-tools/latest/bin:$ANDROID_HOME/platform-tools:$PATH
-        mkdir -p $ANDROID_HOME/cmdline-tools
-        wget -q https://dl.google.com/android/repository/commandlinetools-linux-9477386_latest.zip -O cmdline-tools.zip
-        unzip -q cmdline-tools.zip -d $ANDROID_HOME/cmdline-tools
-        mv $ANDROID_HOME/cmdline-tools/cmdline-tools $ANDROID_HOME/cmdline-tools/latest || true
-        yes | sdkmanager --sdk_root=$ANDROID_HOME --licenses
-        sdkmanager --sdk_root=$ANDROID_HOME "platform-tools" "platforms;android-34" "build-tools;34.0.0" "ndk;25.2.9519653"
-        echo "ANDROIDSDK=$ANDROID_HOME" >> $GITHUB_ENV
-        echo "ANDROIDNDK=$ANDROID_HOME/ndk/25.2.9519653" >> $GITHUB_ENV
-        echo "PATH=$ANDROID_HOME/platform-tools:$ANDROID_HOME/cmdline-tools/latest/bin:$PATH" >> $GITHUB_ENV
-        sdkmanager --list
+        CD="$RUNNER_TEMP/android-cmdline"
+        mkdir -p "$CD"
+        cd "$CD"
+        TOOLS_ZIP="commandlinetools-linux-9477386_latest.zip"
+        if [ ! -f "$TOOLS_ZIP" ]; then
+          wget -q "https://dl.google.com/android/repository/${TOOLS_ZIP}" -O "$TOOLS_ZIP"
+        fi
+        unzip -q "$TOOLS_ZIP" -d cmdline-tools
+        ANDROID_HOME="$RUNNER_TEMP/android-sdk"
+        mkdir -p "$ANDROID_HOME/cmdline-tools"
+        if [ -d cmdline-tools/cmdline-tools ]; then
+          mv cmdline-tools/cmdline-tools "$ANDROID_HOME/cmdline-tools/latest"
+        elif [ -d cmdline-tools/bin ]; then
+          mv cmdline-tools "$ANDROID_HOME/cmdline-tools/latest"
+        else
+          mkdir -p "$ANDROID_HOME/cmdline-tools/latest"
+          mv cmdline-tools/* "$ANDROID_HOME/cmdline-tools/latest/" || true
+        fi
+        echo "ANDROID_HOME=$ANDROID_HOME" >> "$GITHUB_ENV"
+        echo "ANDROID_CMDLINE=$ANDROID_HOME/cmdline-tools/latest/bin" >> "$GITHUB_ENV"
+        echo "PATH=$ANDROID_HOME/platform-tools:$ANDROID_HOME/cmdline-tools/latest/bin:$PATH" >> "$GITHUB_ENV"
+      shell: bash
 
-    - name: Setup Python venv & install p4a
+    - name: Install Android SDK packages & accept licenses
+      env:
+        ANDROID_HOME: ${{ env.ANDROID_HOME }}
       run: |
+        set -euo pipefail
+        ANDROID_HOME="${ANDROID_HOME:-$RUNNER_TEMP/android-sdk}"
+        export ANDROID_HOME
+        export PATH="$ANDROID_HOME/platform-tools:$ANDROID_HOME/cmdline-tools/latest/bin:$PATH"
+        SDKMAN="$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager"
+        if [ ! -x "$SDKMAN" ]; then
+          SDKMAN=$(command -v sdkmanager || true)
+        fi
+        printf '%s\n' y | "$SDKMAN" --sdk_root="$ANDROID_HOME" --licenses > /dev/null 2>&1 || true
+
+        retry() {
+          local tries=${1:-4}; shift
+          local cmd=( "$@" )
+          local i=1
+          while true; do
+            echo "Attempt $i: ${cmd[*]}"
+            if "${cmd[@]}"; then
+              return 0
+            fi
+            i=$((i+1))
+            if [ $i -gt $tries ]; then
+              echo "Failed after $tries attempts: ${cmd[*]}"
+              return 1
+            fi
+            sleep 5
+          done
+        }
+
+        # ✅ Android 34 platformu tamamen indiriliyor
+        retry 4 "$SDKMAN" --sdk_root="$ANDROID_HOME" --install \
+          "platform-tools" "platforms;android-34" "build-tools;34.0.0" "ndk;25.2.9519653"
+
+        # ✅ platform-34 dizininin varlığını doğrula
+        ls -la "$ANDROID_HOME/platforms" || true
+
+        echo "ANDROIDSDK=$ANDROID_HOME" >> "$GITHUB_ENV"
+        echo "ANDROIDNDK=$ANDROID_HOME/ndk/25.2.9519653" >> "$GITHUB_ENV"
+        echo "PATH=$ANDROID_HOME/platform-tools:$ANDROID_HOME/cmdline-tools/latest/bin:$PATH" >> "$GITHUB_ENV"
+      shell: bash
+
+    - name: Create Python venv & install python-for-android deps
+      run: |
+        set -euo pipefail
         python3 -m venv .p4a-venv
         source .p4a-venv/bin/activate
-        pip install --upgrade pip setuptools wheel
+        python -m pip install --upgrade pip setuptools wheel
         pip install "python-for-android==2024.01.21" "Cython==3.2.0"
+        python -c "import pythonforandroid; print('p4a', getattr(pythonforandroid,'__version__', 'unknown'))"
+      shell: bash
 
-    - name: Prepare main.py
+    - name: Ensure main.py exists (copy möm.py -> main.py if necessary)
       run: |
+        set -euo pipefail
+        SOURCE_DIR="."
+        cd "$SOURCE_DIR"
         if [ -f "main.py" ]; then
-          echo "main.py exists"
+          echo "main.py exists; ok."
         elif [ -f "möm.py" ]; then
-          cp möm.py main.py
-          echo "Copied möm.py -> main.py"
+          echo "Found möm.py -> copying to main.py"
+          cp "möm.py" main.py
         else
-          echo "No main.py or möm.py found!"
+          echo "No main.py or möm.py found — listing repo root:"
           ls -la
         fi
+      shell: bash
 
-    - name: Build APK
+    - name: Build APK with python-for-android
       env:
         ANDROIDSDK: ${{ env.ANDROIDSDK }}
         ANDROIDNDK: ${{ env.ANDROIDNDK }}
@@ -71,7 +134,9 @@ jobs:
       run: |
         set -euo pipefail
         source .p4a-venv/bin/activate
-        echo "Building APK with p4a..."
+        PROJECT_DIR="${GITHUB_WORKSPACE:-$(pwd)}"
+        cd "$PROJECT_DIR"
+        echo "Building with p4a; SDK: $ANDROIDSDK ; NDK: $ANDROIDNDK"
         p4a apk \
           --private . \
           --package=org.atagul.ataguldoner \
@@ -84,9 +149,10 @@ jobs:
           --ndk-dir "$ANDROIDNDK" \
           --android-api=34 \
           --skip-build-pygame-c \
-          --debug || (tail -n 300 ~/.local/share/python-for-android/build.log || true; exit 1)
+          --debug || (echo "p4a failed, printing last 300 lines of build log"; tail -n 300 ~/.local/share/python-for-android/build.log || true ; exit 1)
+      shell: bash
 
-    - name: Upload APK
+    - name: Upload APK artifact
       uses: actions/upload-artifact@v4
       with:
         name: ATAGULDONER-APK
