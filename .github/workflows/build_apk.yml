@@ -92,32 +92,34 @@ jobs:
         python -c "import pythonforandroid; print('p4a ok:', pythonforandroid.__version__)"
       shell: bash
 
-    - name: Build APK with python-for-android (docs folder)
-      env:
-        ANDROIDSDK: ${{ env.ANDROIDSDK }}
-        ANDROIDNDK: ${{ env.ANDROIDNDK }}
-        PATH: ${{ env.PATH }}
-      run: |
-        set -euo pipefail
-        source .p4a-venv/bin/activate
-        cd docs
-        if [ ! -f "möm.py" ]; then
-          echo "ERROR: möm.py not found in docs"
-          ls -la
-          exit 1
-        fi
-        p4a apk \
-          --private "." \
-          --package=org.atagul.ataguldoner \
-          --name "ATAGULDONER" \
-          --version 1.0 \
-          --bootstrap=sdl2 \
-          --arch=arm64-v8a \
-          --requirements=python3,pygame \
-          --sdk-dir "$ANDROIDSDK" \
-          --ndk-dir "$ANDROIDNDK" \
-          --debug
-      shell: bash
+    - name: Build APK with python-for-android
+  env:
+    ANDROIDSDK: ${{ env.ANDROIDSDK }}
+    ANDROIDNDK: ${{ env.ANDROIDNDK }}
+    PATH: ${{ env.PATH }}
+  run: |
+    set -euo pipefail
+    source .p4a-venv/bin/activate
+    # proje köküne git (docs yerine)
+    PROJECT_DIR="$GITHUB_WORKSPACE"
+    cd "$PROJECT_DIR"
+    if [ ! -f "möm.py" ]; then
+      echo "ERROR: möm.py not found in project root"
+      ls -la
+      exit 1
+    fi
+    p4a apk \
+      --private "." \
+      --package=org.atagul.ataguldoner \
+      --name "ATAGULDONER" \
+      --version 1.0 \
+      --bootstrap=sdl2 \
+      --arch=arm64-v8a \
+      --requirements=python3,pygame \
+      --sdk-dir "$ANDROIDSDK" \
+      --ndk-dir "$ANDROIDNDK" \
+      --debug
+  shell: bash
 
     - name: Upload APK artifact
       uses: actions/upload-artifact@v4
