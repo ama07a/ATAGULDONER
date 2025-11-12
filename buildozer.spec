@@ -6,52 +6,38 @@ title = ATAGULDONER
 package.name = ataguldoner
 package.domain = org.atagul
 
-# (str) Source dir (where your main .py is). Repo root uses "."
+# (str) Source code dir
 source.dir = .
 
-# (str) Main python file (rename if main file farklı)
-source.include_exts = py, png, jpg, kv, atlas, ogg, wav
-
-# (str) Presume your entrypoint is 'möm.py' or 'main.py'. Set here:
-# If your main file is 'möm.py', set: (escape non-ascii? best to rename to main.py)
-# You can rename the file to main.py to avoid encoding problems.
-# Example:
-# (UNIX filenames): main.py
-# If your entry file is named 'möm.py' you are safer renaming it to main.py before build.
-# For safety, set the entrypoint:
-# (If you do not set, buildozer will try main.py)
-# uncomment and set if necessary:
-# entrypoint = möm.py
-
-# (str) Application versioning (must be present)
-version = 1.0
+# (str) The main file of the application (Buildozer expects main.py)
+# If your file is named anders (möm.py) we copied it to main.py in workflow step.
+source.include_exts = py,kv,png,jpg,ogg,ogg,ttf,atlas,json
 
 # (list) Application requirements
 requirements = python3, pygame
 
-# (str) Application icon
-# icon.filename = %(source.dir)s/icon.png
+# (str) Supported orientation
+orientation = landscape
 
-# (bool) Android-specific settings
+# (int) Android API to use (will be installed by CI)
 android.api = 34
 android.minapi = 24
 android.ndk = 25.2.9519653
+
+# (str) Android entry point (optional - default is main.py)
+# android.entrypoint = main.py
+
+# (bool) accept SDK licenses automatically in CI
 android.accept_sdk_license = True
 
-# (str) Supported architectures
+# (str) version
+version = 1.0
+
+# (str) Android archs (use arm64 to avoid armeabi complexities)
 android.archs = arm64-v8a
 
-# (str) Android permissions
-android.permissions = INTERNET
+# (int) Android build tool
+android.build_tools_version = 34.0.0
 
-# (bool) Copy libs into libs folder of the android project
-# (useful for local native libs)
-# copy-libs = True
-
-# (str) Presplash, orientation, etc
-orientation = landscape
-fullscreen = 0
-log_level = 2
-
-# (int) Android bootstrap: use 'sdl2' for pygame projects
-bootstrap = sdl2
+# (str) Presplash / icon — optional
+# icon.filename = %(source.dir)s/assets/icon.png
