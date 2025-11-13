@@ -6,121 +6,57 @@ on:
   workflow_dispatch:
 
 jobs:
-  build-apk:
+  build:
     runs-on: ubuntu-latest
-    timeout-minutes: 240
 
     steps:
     - name: Checkout repository
-      uses: actions/checkout@v4
+      uses: actions/checkout@v3
 
-    - name: Set up Python 3.11
+    - name: Set up Python
       uses: actions/setup-python@v4
       with:
-        python-version: '3.11'
+        python-version: "3.11"
 
-    - name: Install essential packages
+    - name: Install dependencies
       run: |
-        sudo apt-get update -y
-        sudo apt-get install -y --no-install-recommends \
-          wget unzip zip tar git build-essential cmake automake autoconf libtool pkg-config \
-          python3-venv python3-pip python3-dev openjdk-17-jdk-headless \
-          libsdl2-dev libsdl2-image-dev libsdl2-mixer-dev libsdl2-ttf-dev \
-          libffi-dev libssl-dev ca-certificates
-      shell: bash
+        python -m pip install --upgrade pip
+        pip install python-for-android
 
-    - name: Download Android cmdline-tools
+    - name: Set up Android SDK and NDK
       run: |
-        set -euo pipefail
-        mkdir -p "$RUNNER_TEMP/android-sdk/cmdline-tools"
-        cd "$RUNNER_TEMP"
-        wget -q https://dl.google.com/android/repository/commandlinetools-linux-9477386_latest.zip
-        unzip -q commandlinetools-linux-9477386_latest.zip -d cmdline-tools
-        mv cmdline-tools "$RUNNER_TEMP/android-sdk/cmdline-tools/latest"
-        echo "ANDROID_HOME=$RUNNER_TEMP/android-sdk" >> "$GITHUB_ENV"
-        echo "PATH=$RUNNER_TEMP/android-sdk/cmdline-tools/latest/bin:$RUNNER_TEMP/android-sdk/platform-tools:$PATH" >> "$GITHUB_ENV"
-      shell: bash
+        sudo apt-get update
+        sudo apt-get install -y wget unzip
+        mkdir -p $RUNNER_TEMP/android-sdk
+        cd $RUNNER_TEMP/android-sdk
 
-    - name: Install SDK platforms and tools
-      env:
-        ANDROID_HOME: ${{ env.ANDROID_HOME }}
-      run: |
-        set -euo pipefail
-        export ANDROID_HOME="${ANDROID_HOME:-$RUNNER_TEMP/android-sdk}"
-        export PATH="$ANDROID_HOME/cmdline-tools/latest/bin:$PATH"
-        echo "Accepting licenses..."
-        yes | sdkmanager --licenses >/dev/null 2>&1 || true
+        # Android command-line tools
+        wget https://dl.google.com/android/repository/commandlinetools-linux-11076708_latest.zip -O cmdline-tools.zip
+        unzip cmdline-tools.zip
+        mkdir -p cmdline-tools/latest
+        mv cmdline-tools/* cmdline-tools/latest/
 
-        echo "Installing platform-tools, build-tools, NDK, and android-34..."
-        sdkmanager --sdk_root="$ANDROID_HOME" "platform-tools" "build-tools;34.0.0" "platforms;android-34" "ndk;25.2.9519653" || true
-
-        # verify platform actually installed, retry up to 3 times
-        for i in 1 2 3; do
-          if [ -d "$ANDROID_HOME/platforms/android-34" ]; then
-            echo "android-34 installed!"
-            echo "ANDROID_API=34" >> "$GITHUB_ENV"
-            break
-          else
-            echo "Retry $i: android-34 missing, re-installing..."
-            sdkmanager --sdk_root="$ANDROID_HOME" "platforms;android-34" || true
-            sleep 10
-          fi
-        done
-
-        # fallback to android-33 if still missing
-        if [ ! -d "$ANDROID_HOME/platforms/android-34" ]; then
-          echo "Falling back to android-33..."
-          sdkmanager --sdk_root="$ANDROID_HOME" "platforms;android-33" || true
-          echo "ANDROID_API=33" >> "$GITHUB_ENV"
-        fi
-
-        echo "ANDROIDSDK=$ANDROID_HOME" >> "$GITHUB_ENV"
-        echo "ANDROIDNDK=$ANDROID_HOME/ndk/25.2.9519653" >> "$GITHUB_ENV"
-        ls -R "$ANDROID_HOME/platforms" || true
-      shell: bash
-
-    - name: Prepare virtualenv and install python-for-android
-      run: |
-        set -euo pipefail
-        python3 -m venv .p4a
-        source .p4a/bin/activate
-        pip install --upgrade pip setuptools wheel
-        pip install "python-for-android==2024.01.21" "Cython==3.2.0"
-      shell: bash
-
-    - name: Detect main Python file (möm.py → main.py)
-      run: |
-        if [ -f "main.py" ]; then
-          echo "main.py found."
-        elif [ -f "möm.py" ]; then
-          echo "Copying möm.py → main.py"
-          cp "möm.py" main.py
-        elif [ -f "mom.py" ]; then
-          echo "Copying mom.py → main.py"
-          cp "mom.py" main.py
-        else
-          echo "No entry file found!"
-          ls -la
-        fi
-      shell: bash
+        # SDK Manager setup
+        yes | cmdline-tools/latest/bin/sdkmanager --sdk_root=$RUNNER_TEMP/android-sdk "platform-tools"
+        yes | cmdline-tools/latest/bin/sdkmanager --sdk_root=$RUNNER_TEMP/android-sdk "platforms;android-33"
+        yes | cmdline-tools/latest/bin/sdkmanager --sdk_root=$RUNNER_TEMP/android-sdk "build-tools;33.0.2"
+        yes | cmdline-tools/latest/bin/sdkmanager --sdk_root=$RUNNER_TEMP/android-sdk "ndk;25.2.9519653"
 
     - name: Build APK
-      env:
-        ANDROIDSDK: ${{ env.ANDROIDSDK }}
-        ANDROIDNDK: ${{ env.ANDROIDNDK }}
-        ANDROID_API: ${{ env.ANDROID_API }}
       run: |
         set -euo pipefail
-        source .p4a/bin/activate
+        source .p4a-venv/bin/activate || python -m venv .p4a-venv && source .p4a-venv/bin/activate
+        pip install python-for-android pygame
+
+        ANDROIDSDK="$RUNNER_TEMP/android-sdk"
+        ANDROIDNDK="$ANDROIDSDK/ndk/25.2.9519653"
+        ANDROID_API=33
+
+        export PATH="$ANDROIDSDK/cmdline-tools/latest/bin:$ANDROIDSDK/platform-tools:$PATH"
+
         echo "SDK: $ANDROIDSDK"
         echo "NDK: $ANDROIDNDK"
         echo "API: $ANDROID_API"
-
-        if [ ! -d "$ANDROIDSDK/platforms/android-$ANDROID_API" ]; then
-          echo "ERROR: android-$ANDROID_API platform not found!"
-          ls -R "$ANDROIDSDK/platforms" || true
-          exit 1
-        fi
 
         p4a apk \
           --private . \
@@ -134,14 +70,10 @@ jobs:
           --ndk-dir "$ANDROIDNDK" \
           --android-api="$ANDROID_API" \
           --skip-build-pygame-c \
-          --debug || ( tail -n 200 ~/.local/share/python-for-android/*.log || true; exit 1 )
-      shell: bash
+          --debug
 
     - name: Upload built APK
       uses: actions/upload-artifact@v4
       with:
-        name: ATAGULDONER-APK
-        path: |
-          dist/*.apk
-          bin/*.apk
-          ./*.apk
+        name: ATAGULDONER-debug
+        path: dist/*.apk
