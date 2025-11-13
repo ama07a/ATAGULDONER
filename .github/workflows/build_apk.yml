@@ -21,7 +21,7 @@ jobs:
     - name: Install dependencies
       run: |
         python -m pip install --upgrade pip
-        pip install python-for-android
+        pip install python-for-android pygame
 
     - name: Set up Android SDK and NDK
       run: |
@@ -30,13 +30,13 @@ jobs:
         mkdir -p $RUNNER_TEMP/android-sdk
         cd $RUNNER_TEMP/android-sdk
 
-        # Android command-line tools
+        # Android command-line tools indiriliyor
         wget https://dl.google.com/android/repository/commandlinetools-linux-11076708_latest.zip -O cmdline-tools.zip
         unzip cmdline-tools.zip
         mkdir -p cmdline-tools/latest
         mv cmdline-tools/* cmdline-tools/latest/
 
-        # SDK Manager setup
+        # SDK bileşenleri indiriliyor
         yes | cmdline-tools/latest/bin/sdkmanager --sdk_root=$RUNNER_TEMP/android-sdk "platform-tools"
         yes | cmdline-tools/latest/bin/sdkmanager --sdk_root=$RUNNER_TEMP/android-sdk "platforms;android-33"
         yes | cmdline-tools/latest/bin/sdkmanager --sdk_root=$RUNNER_TEMP/android-sdk "build-tools;33.0.2"
@@ -45,7 +45,8 @@ jobs:
     - name: Build APK
       run: |
         set -euo pipefail
-        source .p4a-venv/bin/activate || python -m venv .p4a-venv && source .p4a-venv/bin/activate
+        python -m venv .p4a-venv
+        source .p4a-venv/bin/activate
         pip install python-for-android pygame
 
         ANDROIDSDK="$RUNNER_TEMP/android-sdk"
@@ -58,6 +59,7 @@ jobs:
         echo "NDK: $ANDROIDNDK"
         echo "API: $ANDROID_API"
 
+        # APK oluşturuluyor
         p4a apk \
           --private . \
           --package=org.atagul.ataguldoner \
