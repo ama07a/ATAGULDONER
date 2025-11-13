@@ -27,6 +27,34 @@ jobs:
           python3-venv python3-pip python3-dev libffi-dev libssl-dev \
           libsdl2-dev libsdl2-image-dev libsdl2-mixer-dev libsdl2-ttf-dev
       shell: bash
+          - name: Install Android SDK packages & accept licenses
+      env:
+        ANDROID_HOME: ${{ env.ANDROID_HOME }}
+      run: |
+        set -euo pipefail
+        ANDROID_HOME="${ANDROID_HOME:-$RUNNER_TEMP/android-sdk}"
+        export ANDROID_HOME
+        export PATH="$ANDROID_HOME/platform-tools:$ANDROID_HOME/cmdline-tools/latest/bin:$PATH"
+        SDKMAN="$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager"
+
+        echo "📦 Accepting Android SDK licenses..."
+        yes | "$SDKMAN" --sdk_root="$ANDROID_HOME" --licenses > /dev/null || true
+
+        echo "📦 Installing Android SDK packages..."
+        "$SDKMAN" --sdk_root="$ANDROID_HOME" --install \
+          "platform-tools" \
+          "platforms;android-34" \
+          "build-tools;34.0.0" \
+          "ndk;25.2.9519653" \
+          || (echo "❌ SDK install failed"; exit 1)
+
+        echo "✅ Android SDK setup complete!"
+        ls -la "$ANDROID_HOME/platforms" || true
+
+        echo "ANDROIDSDK=$ANDROID_HOME" >> "$GITHUB_ENV"
+        echo "ANDROIDNDK=$ANDROID_HOME/ndk/25.2.9519653" >> "$GITHUB_ENV"
+      shell: bash
+
 
     - name: Prepare Android SDK + NDK
       run: |
